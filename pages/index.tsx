@@ -12,7 +12,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  // Fetch assets from Supabase
   useEffect(() => {
     fetchAssets();
   }, []);
