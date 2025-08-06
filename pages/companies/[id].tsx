@@ -1,7 +1,7 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/utils/supabaseClient';
+import supabase from '@/utils/supabaseClient';
 
 export default function CompanyDetail() {
   const router = useRouter();
