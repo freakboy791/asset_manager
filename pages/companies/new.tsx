@@ -1,55 +1,53 @@
-import { useState } from 'react';
 import { useRouter } from 'next/router';
+import { useState } from 'react';
 import { supabase } from '@/utils/supabaseClient';
 
-export default function NewCompanyPage() {
+export default function AddCompany() {
   const router = useRouter();
-
   const [formData, setFormData] = useState({
     name: '',
-    depreciation_rate: 0.2,
+    depreciation_rate: '',
     street: '',
     city: '',
     state: '',
     zip: '',
     phone: '',
     email: '',
-    notes: '',
+    note: '',
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: any) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === 'depreciation_rate' ? parseFloat(value) : value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
-    const { error } = await supabase.from('companies').insert([formData]);
+    const { error } = await supabase.from('companies').insert([
+      { ...formData, depreciation_rate: parseFloat(formData.depreciation_rate) },
+    ]);
     if (!error) {
       alert('Company added!');
       router.push('/companies');
     } else {
-      alert('Error: ' + error.message);
+      alert(error.message);
     }
   };
 
   return (
     <div className="p-6 max-w-xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Add New Company</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-3">
         <input name="name" placeholder="Name" onChange={handleChange} required className="w-full p-2 border" />
-        <input type="number" step="0.01" name="depreciation_rate" placeholder="Depreciation Rate (e.g. 0.25)" onChange={handleChange} className="w-full p-2 border" />
+        <input name="depreciation_rate" placeholder="Depreciation %" type="number" step="0.01" onChange={handleChange} className="w-full p-2 border" />
         <input name="street" placeholder="Street" onChange={handleChange} className="w-full p-2 border" />
         <input name="city" placeholder="City" onChange={handleChange} className="w-full p-2 border" />
         <input name="state" placeholder="State" onChange={handleChange} className="w-full p-2 border" />
         <input name="zip" placeholder="Zip" onChange={handleChange} className="w-full p-2 border" />
         <input name="phone" placeholder="Phone" onChange={handleChange} className="w-full p-2 border" />
-        <input type="email" name="email" placeholder="Email" onChange={handleChange} className="w-full p-2 border" />
-        <textarea name="notes" placeholder="Notes (e.g. type of company)" onChange={handleChange} className="w-full p-2 border" />
-        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">Add Company</button>
+        <input name="email" placeholder="Email" onChange={handleChange} className="w-full p-2 border" />
+        <textarea name="note" placeholder="Note" onChange={handleChange} className="w-full p-2 border" />
+        <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">Save Company</button>
       </form>
     </div>
   );
