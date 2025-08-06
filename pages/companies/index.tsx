@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/utils/supabaseClient';
+import supabase from '@/utils/supabaseClient';
 
 export default function CompaniesList() {
   const [companies, setCompanies] = useState<any[]>([]);
