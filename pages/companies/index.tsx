@@ -32,3 +32,7 @@ export default function CompaniesList() {
     </Layout>
   );
 }
+
+
+
+<div className="text-3xl text-blue-600 font-bold">Tailwind test</div>
