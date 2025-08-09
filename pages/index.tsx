@@ -20,3 +20,8 @@ export default function Home() {
     </Layout>
   );
 }
+
+
+<div className="text-3xl text-blue-600 font-bold bg-yellow-100 p-4 rounded">
+  Tailwind test
+</div>
