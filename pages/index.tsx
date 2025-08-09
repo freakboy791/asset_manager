@@ -1,23 +1,22 @@
+import Layout from '@/components/Layout';
 import Link from 'next/link';
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen">
-      <aside className="w-60 bg-gray-800 text-white p-4">
-        <h2 className="text-xl font-bold mb-6">Asset Tracker</h2>
-        <ul className="space-y-2">
-          <li>
-            <Link href="/companies" className="hover:underline">Companies</Link>
-          </li>
-          <li>
-            <Link href="/assets/new" className="hover:underline">Add Asset</Link>
-          </li>
-        </ul>
-      </aside>
-      <main className="flex-1 p-6">
-        <h1 className="text-2xl font-semibold mb-4">Welcome to the Asset Tracker</h1>
-        <p>Select a section from the menu to get started.</p>
-      </main>
-    </div>
+    <Layout>
+      <h2 className="text-xl font-semibold mb-4">Welcome</h2>
+      <p className="text-gray-600 mb-6">Choose a section from the left to get started.</p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Link href="/companies" className="rounded border p-4 bg-white hover:shadow">
+          <div className="font-medium">Companies</div>
+          <div className="text-sm text-gray-600">View and manage companies.</div>
+        </Link>
+        <Link href="/assets/new" className="rounded border p-4 bg-white hover:shadow">
+          <div className="font-medium">Add Asset</div>
+          <div className="text-sm text-gray-600">Create a new asset and assign it.</div>
+        </Link>
+      </div>
+    </Layout>
   );
 }

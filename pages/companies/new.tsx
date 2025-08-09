@@ -1,54 +1,47 @@
 import { useRouter } from 'next/router';
 import { useState } from 'react';
+import Layout from '@/components/Layout';
 import supabase from '@/utils/supabaseClient';
 
 export default function AddCompany() {
   const router = useRouter();
-  const [formData, setFormData] = useState({
-    name: '',
-    depreciation_rate: '',
-    street: '',
-    city: '',
-    state: '',
-    zip: '',
-    phone: '',
-    email: '',
-    note: '',
+  const [form, setForm] = useState({
+    name: '', depreciation_rate: '', street: '', city: '', state: '', zip: '',
+    phone: '', email: '', note: '',
   });
+  const [saving, setSaving] = useState(false);
 
-  const handleChange = (e: any) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  const onChange = (e: any) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleSubmit = async (e: any) => {
+  const onSubmit = async (e: any) => {
     e.preventDefault();
-    const { error } = await supabase.from('companies').insert([
-      { ...formData, depreciation_rate: parseFloat(formData.depreciation_rate) },
-    ]);
-    if (!error) {
-      alert('Company added!');
-      router.push('/companies');
-    } else {
-      alert(error.message);
-    }
+    setSaving(true);
+    const payload = { ...form, depreciation_rate: form.depreciation_rate ? parseFloat(form.depreciation_rate) : null };
+    const { error } = await supabase.from('companies').insert([payload]);
+    setSaving(false);
+    if (error) return alert(error.message);
+    router.push('/companies');
   };
 
   return (
-    <div className="p-6 max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Add New Company</h1>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <input name="name" placeholder="Name" onChange={handleChange} required className="w-full p-2 border" />
-        <input name="depreciation_rate" placeholder="Depreciation %" type="number" step="0.01" onChange={handleChange} className="w-full p-2 border" />
-        <input name="street" placeholder="Street" onChange={handleChange} className="w-full p-2 border" />
-        <input name="city" placeholder="City" onChange={handleChange} className="w-full p-2 border" />
-        <input name="state" placeholder="State" onChange={handleChange} className="w-full p-2 border" />
-        <input name="zip" placeholder="Zip" onChange={handleChange} className="w-full p-2 border" />
-        <input name="phone" placeholder="Phone" onChange={handleChange} className="w-full p-2 border" />
-        <input name="email" placeholder="Email" onChange={handleChange} className="w-full p-2 border" />
-        <textarea name="note" placeholder="Note" onChange={handleChange} className="w-full p-2 border" />
-        <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">Save Company</button>
+    <Layout>
+      <h2 className="text-xl font-semibold mb-4">Add New Company</h2>
+      <form onSubmit={onSubmit} className="bg-white border rounded p-6 space-y-4 max-w-2xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <input className="border rounded p-2" name="name" placeholder="Company name" onChange={onChange} required />
+          <input className="border rounded p-2" type="number" step="0.01" name="depreciation_rate" placeholder="Depreciation rate as percent (e.g. 20)" onChange={onChange} />
+          <input className="border rounded p-2" name="street" placeholder="Street" onChange={onChange} />
+          <input className="border rounded p-2" name="city" placeholder="City" onChange={onChange} />
+          <input className="border rounded p-2" name="state" placeholder="State" onChange={onChange} />
+          <input className="border rounded p-2" name="zip" placeholder="ZIP" onChange={onChange} />
+          <input className="border rounded p-2" name="phone" placeholder="Phone" onChange={onChange} />
+          <input className="border rounded p-2" type="email" name="email" placeholder="Email" onChange={onChange} />
+        </div>
+        <textarea className="border rounded p-2 w-full" rows={3} name="note" placeholder="Notes / Company type" onChange={onChange} />
+        <button disabled={saving} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">
+          {saving ? 'Saving…' : 'Save Company'}
+        </button>
       </form>
-    </div>
+    </Layout>
   );
 }

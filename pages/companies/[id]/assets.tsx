@@ -1,35 +1,41 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Layout from '@/components/Layout';
 import supabase from '@/utils/supabaseClient';
 
 export default function CompanyAssets() {
-  const router = useRouter();
-  const { id } = router.query;
+  const { query: { id } } = useRouter();
   const [assets, setAssets] = useState<any[]>([]);
 
   useEffect(() => {
     if (!id) return;
-    const fetchAssets = async () => {
-      const { data } = await supabase.from('assets').select('*').eq('company_id', id);
+    (async () => {
+      const { data } = await supabase.from('assets').select('id,name,serial').eq('company_id', id);
       if (data) setAssets(data);
-    };
-    fetchAssets();
+    })();
   }, [id]);
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Assets for Company</h1>
-      <Link href="/assets/new" className="text-blue-600 underline mb-4 inline-block">Add New Asset</Link>
-      <ul className="space-y-2">
-        {assets.map((asset) => (
-          <li key={asset.id}>
-            <Link href={`/assets/${asset.id}`} className="text-blue-800 underline">
-              {asset.name} ({asset.serial_number})
-            </Link>
-          </li>
+    <Layout>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Assets</h2>
+        <Link href="/assets/new" className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Add Asset</Link>
+      </div>
+
+      <div className="bg-white border rounded divide-y">
+        {assets.length === 0 && <div className="p-4 text-gray-500">No assets yet.</div>}
+        {assets.map(a => (
+          <Link key={a.id} href={`/assets/${a.id}`} className="flex items-center justify-between p-4 hover:bg-gray-50">
+            <div>
+              <div className="font-medium">{a.name}</div>
+              <div className="text-sm text-gray-600">Serial: {a.serial}</div>
+            </div>
+            <div className="text-blue-700">View →</div>
+          </Link>
         ))}
-      </ul>
-    </div>
+      </div>
+    </Layout>
   );
 }
+

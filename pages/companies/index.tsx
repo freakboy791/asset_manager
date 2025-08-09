@@ -1,31 +1,34 @@
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import Layout from '@/components/Layout';
 import supabase from '@/utils/supabaseClient';
 
 export default function CompaniesList() {
   const [companies, setCompanies] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchCompanies = async () => {
-      const { data } = await supabase.from('companies').select('*');
+    (async () => {
+      const { data } = await supabase.from('companies').select('id,name').order('name');
       if (data) setCompanies(data);
-    };
-    fetchCompanies();
+    })();
   }, []);
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Companies</h1>
-      <Link href="/companies/new" className="text-blue-600 underline">Add New Company</Link>
-      <ul className="mt-4 space-y-2">
-        {companies.map((company) => (
-          <li key={company.id}>
-            <Link href={`/companies/${company.id}`} className="text-lg text-blue-800 underline">
-              {company.name}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <Layout>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Companies</h2>
+        <Link href="/companies/new" className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Add Company</Link>
+      </div>
+
+      <div className="bg-white rounded border">
+        <ul>
+          {companies.map((c, idx) => (
+            <li key={c.id} className={`p-4 ${idx !== companies.length - 1 ? 'border-b' : ''}`}>
+              <Link className="text-blue-700 hover:underline" href={`/companies/${c.id}`}>{c.name}</Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Layout>
   );
 }

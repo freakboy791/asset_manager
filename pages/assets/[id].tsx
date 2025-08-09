@@ -1,83 +1,76 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
+import Layout from '@/components/Layout';
 import supabase from '@/utils/supabaseClient';
 
 export default function AssetDetail() {
-  const router = useRouter();
-  const { id } = router.query;
-
+  const { query: { id } } = useRouter();
   const [asset, setAsset] = useState<any>(null);
   const [company, setCompany] = useState<any>(null);
-  const [formData, setFormData] = useState<any>(null);
+  const [form, setForm] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-
-    const fetchAsset = async () => {
-      const { data, error } = await supabase.from('assets').select('*').eq('id', id).single();
-      if (data) {
-        setAsset(data);
-        setFormData({ ...data });
-
-        const { data: companyData } = await supabase.from('companies').select('*').eq('id', data.company_id).single();
-        setCompany(companyData);
-      }
-    };
-
-    fetchAsset();
+    (async () => {
+      const { data } = await supabase.from('assets').select('*').eq('id', id).single();
+      if (!data) return;
+      setAsset(data);
+      setForm({ ...data });
+      const { data: comp } = await supabase.from('companies').select('*').eq('id', data.company_id).single();
+      setCompany(comp);
+    })();
   }, [id]);
 
-  const handleChange = (e: any) => {
-    const { name, value } = e.target;
-    setFormData((prev: any) => ({ ...prev, [name]: value }));
-  };
+  const onChange = (e: any) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleUpdate = async (e: any) => {
+  const onSave = async (e: any) => {
     e.preventDefault();
-    const { error } = await supabase.from('assets').update(formData).eq('id', id);
-    if (!error) {
-      alert('Asset updated!');
-      router.push(`/companies/${formData.company_id}/assets`);
-    } else {
-      alert(error.message);
-    }
+    setSaving(true);
+    const payload = { ...form, cost: form.cost ? parseFloat(form.cost) : null };
+    const { error } = await supabase.from('assets').update(payload).eq('id', id);
+    setSaving(false);
+    if (error) return alert(error.message);
+    alert('Asset updated');
   };
 
-  const calculateDepreciatedValue = () => {
-    if (!asset || !company || !asset.added_on || !asset.cost || !company.depreciation_rate) return null;
-
+  const depreciatedValue = () => {
+    if (!asset || !company || !asset.added_on || !asset.cost || company.depreciation_rate == null) return null;
     const added = new Date(asset.added_on);
-    const now = new Date();
-    const years = (now.getTime() - added.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-
-    const depreciation = asset.cost * (company.depreciation_rate / 100) * years;
-    return Math.max(0, asset.cost - depreciation).toFixed(2);
+    const years = (Date.now() - added.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+    const depreciation = Number(asset.cost) * (Number(company.depreciation_rate)/100) * years;
+    return Math.max(0, Number(asset.cost) - depreciation).toFixed(2);
   };
 
-  if (!formData) return <div className="p-6">Loading asset...</div>;
+  if (!form) return <Layout><div>Loading…</div></Layout>;
 
   return (
-    <div className="p-6 max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Asset Detail</h1>
-
-      <form onSubmit={handleUpdate} className="space-y-4">
-        <input name="name" value={formData.name} onChange={handleChange} className="w-full p-2 border" />
-        <input name="serial_number" value={formData.serial_number} onChange={handleChange} className="w-full p-2 border" />
-        <input name="cost" type="number" value={formData.cost} onChange={handleChange} className="w-full p-2 border" />
-        <input name="status" value={formData.status} onChange={handleChange} className="w-full p-2 border" />
-        <textarea name="notes" value={formData.notes} onChange={handleChange} className="w-full p-2 border" />
-
-        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">Update</button>
+    <Layout>
+      <h2 className="text-xl font-semibold mb-4">Asset Detail</h2>
+      <form onSubmit={onSave} className="bg-white border rounded p-6 space-y-4 max-w-2xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <input className="border rounded p-2" name="name" value={form.name || ''} onChange={onChange} />
+          <input className="border rounded p-2" name="serial" value={form.serial || ''} onChange={onChange} />
+          <input className="border rounded p-2" type="number" step="0.01" name="cost" value={form.cost ?? ''} onChange={onChange} />
+          <input className="border rounded p-2" type="date" name="added_on" value={form.added_on?.slice(0,10) || ''} onChange={onChange} />
+          <input className="border rounded p-2" name="status" value={form.status || ''} onChange={onChange} />
+        </div>
+        <textarea className="border rounded p-2 w-full" rows={3} name="notes" value={form.notes || ''} onChange={onChange} />
+        <button disabled={saving} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">
+          {saving ? 'Saving…' : 'Update'}
+        </button>
       </form>
 
       {company && (
-        <div className="mt-6 text-sm text-gray-700">
-          <p><strong>Company:</strong> {company.name}</p>
-          <p><strong>Depreciation Rate:</strong> {company.depreciation_rate}% per year</p>
-          <p><strong>Added On:</strong> {new Date(asset.added_on).toLocaleDateString()}</p>
-          <p><strong>Depreciated Value:</strong> ${calculateDepreciatedValue()}</p>
+        <div className="mt-6 bg-white border rounded p-4">
+          <div className="font-medium mb-1">Depreciation</div>
+          <div className="text-sm text-gray-700">
+            Company rate: {company.depreciation_rate ?? 0}% per year<br/>
+            Added on: {asset.added_on ? new Date(asset.added_on).toLocaleDateString() : '—'}<br/>
+            Current depreciated value: {depreciatedValue() ? `$${depreciatedValue()}` : '—'}
+          </div>
         </div>
       )}
-    </div>
+    </Layout>
   );
 }
