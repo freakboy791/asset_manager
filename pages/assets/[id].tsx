@@ -9,7 +9,7 @@ type Asset = {
   name: string;
   serial: string | null;
   cost: number | null;
-  added_on: string | null;   // ISO date string "YYYY-MM-DD"
+  added_on: string | null; // ISO "YYYY-MM-DD"
   status: string | null;
   notes: string | null;
   company_id: string | null;
@@ -18,7 +18,17 @@ type Asset = {
 type Company = {
   id: string;
   name: string;
-  depreciation_rate: number | null; // percent per year, e.g. 20
+  depreciation_rate: number | null; // percent per year
+};
+
+// Form model stores simple strings for inputs; convert as needed on save
+type AssetForm = {
+  name: string;
+  serial: string;
+  cost: string;       // keep as string in UI; convert to number|null on save
+  added_on: string;   // "YYYY-MM-DD" or ""
+  status: string;
+  notes: string;
 };
 
 export default function AssetDetailPage() {
@@ -27,7 +37,7 @@ export default function AssetDetailPage() {
 
   const [asset, setAsset] = useState<Asset | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
-  const [form, setForm] = useState<Partial<Asset> | null>(null);
+  const [form, setForm] = useState<AssetForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,7 +65,17 @@ export default function AssetDetailPage() {
       }
 
       setAsset(a);
-      setForm(a);
+
+      // Seed form strings from DB values
+      const seeded: AssetForm = {
+        name: a.name ?? "",
+        serial: a.serial ?? "",
+        cost: a.cost != null ? String(a.cost) : "",
+        added_on: a.added_on ? a.added_on.slice(0, 10) : "",
+        status: a.status ?? "",
+        notes: a.notes ?? "",
+      };
+      setForm(seeded);
 
       if (a.company_id) {
         const { data: c, error: cErr } = await supabase
@@ -76,7 +96,7 @@ export default function AssetDetailPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...(prev || {}), [name]: value }));
+    setForm((prev) => (prev ? { ...prev, [name]: value } : prev));
   };
 
   const onSave = async (e: React.FormEvent) => {
@@ -85,16 +105,17 @@ export default function AssetDetailPage() {
     setSaving(true);
     setErr(null);
 
+    // Normalize cost: "" → null, else Number(...)
+    const costValue =
+      form.cost.trim() === "" ? null : Number(form.cost.replace(/,/g, ""));
+
     const payload = {
-      name: form.name ?? "",
-      serial: form.serial ?? null,
-      cost:
-        form.cost !== undefined && form.cost !== null && form.cost !== ""
-          ? Number(form.cost)
-          : null,
+      name: form.name || "",
+      serial: form.serial || null,
+      cost: Number.isFinite(costValue as number) ? costValue : null,
       added_on: form.added_on || null, // keep as "YYYY-MM-DD" or null
-      status: form.status ?? null,
-      notes: form.notes ?? null,
+      status: form.status || null,
+      notes: form.notes || null,
     };
 
     const { data, error } = await supabase
@@ -102,7 +123,7 @@ export default function AssetDetailPage() {
       .update(payload)
       .eq("id", id)
       .select()
-      .single(); // return the updated row
+      .single(); // return updated row
 
     setSaving(false);
 
@@ -114,7 +135,15 @@ export default function AssetDetailPage() {
 
     if (data) {
       setAsset(data);
-      setForm(data);
+      // Resync form with saved values
+      setForm({
+        name: data.name ?? "",
+        serial: data.serial ?? "",
+        cost: data.cost != null ? String(data.cost) : "",
+        added_on: data.added_on ? data.added_on.slice(0, 10) : "",
+        status: data.status ?? "",
+        notes: data.notes ?? "",
+      });
     }
     alert("Asset updated");
   };
@@ -124,7 +153,7 @@ export default function AssetDetailPage() {
       !asset ||
       !company ||
       !asset.added_on ||
-      !asset.cost ||
+      asset.cost == null ||
       company.depreciation_rate == null
     )
       return null;
@@ -132,7 +161,7 @@ export default function AssetDetailPage() {
     const added = new Date(asset.added_on);
     const years =
       (Date.now() - added.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-    const rate = Number(company.depreciation_rate) / 100; // percent → fraction
+    const rate = Number(company.depreciation_rate) / 100;
     const depreciation = Number(asset.cost) * rate * years;
     return Math.max(0, Number(asset.cost) - depreciation).toFixed(2);
   };
@@ -172,7 +201,7 @@ export default function AssetDetailPage() {
                 <input
                   className="border rounded p-2 w-full"
                   name="name"
-                  value={form.name ?? ""}
+                  value={form.name}
                   onChange={onChange}
                   required
                 />
@@ -183,7 +212,7 @@ export default function AssetDetailPage() {
                 <input
                   className="border rounded p-2 w-full"
                   name="serial"
-                  value={form.serial ?? ""}
+                  value={form.serial}
                   onChange={onChange}
                 />
               </label>
@@ -195,11 +224,7 @@ export default function AssetDetailPage() {
                   step="0.01"
                   className="border rounded p-2 w-full"
                   name="cost"
-                  value={
-                    form.cost !== undefined && form.cost !== null
-                      ? String(form.cost)
-                      : ""
-                  }
+                  value={form.cost}
                   onChange={onChange}
                 />
               </label>
@@ -210,7 +235,7 @@ export default function AssetDetailPage() {
                   type="date"
                   className="border rounded p-2 w-full"
                   name="added_on"
-                  value={(form.added_on ?? "").slice(0, 10)}
+                  value={form.added_on}
                   onChange={onChange}
                 />
               </label>
@@ -220,7 +245,7 @@ export default function AssetDetailPage() {
                 <input
                   className="border rounded p-2 w-full"
                   name="status"
-                  value={form.status ?? ""}
+                  value={form.status}
                   onChange={onChange}
                 />
               </label>
@@ -232,7 +257,7 @@ export default function AssetDetailPage() {
                 className="border rounded p-2 w-full"
                 rows={3}
                 name="notes"
-                value={form.notes ?? ""}
+                value={form.notes}
                 onChange={onChange}
               />
             </label>
@@ -265,7 +290,7 @@ export default function AssetDetailPage() {
                 Rate: {company.depreciation_rate ?? 0}% per year
                 <br />
                 Added on:{" "}
-                {asset.added_on
+                {asset?.added_on
                   ? new Date(asset.added_on).toLocaleDateString()
                   : "—"}
                 <br />
