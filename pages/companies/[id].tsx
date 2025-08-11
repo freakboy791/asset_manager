@@ -69,7 +69,7 @@ export default function CompanyDetail() {
         <h2 className="text-lg font-semibold">Assets</h2>
         {/* We’ll wire this later to pre-select company_id */}
         <Link
-          href="/assets/new"
+          href={`/companies/${company.id}/assets/new`}  
           className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
         >
           Add Asset
