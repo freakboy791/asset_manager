@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import supabase from "@/utils/supabaseClient";
+import Link from "next/link";
+import supabase from "../utils/supabaseClient"; // note relative import
 
 type Company = { id: string; name: string };
 
@@ -24,7 +24,7 @@ export default function Companies() {
   }, []);
 
   return (
-    <main className="p-8 bg-gray-50 min-h-screen">
+    <>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Companies</h1>
         <Link
@@ -44,12 +44,14 @@ export default function Companies() {
             <li className="p-4 text-gray-500">No companies yet.</li>
           )}
           {companies.map((c) => (
-            <li key={c.id} className="p-4">
-              <span className="font-medium">{c.name}</span>
+            <li key={c.id} className="p-4 hover:bg-gray-50">
+              <Link className="font-medium text-blue-700 hover:underline" href={`/companies/${c.id}`}>
+                {c.name}
+              </Link>
             </li>
           ))}
         </ul>
       )}
-    </main>
+    </>
   );
 }
