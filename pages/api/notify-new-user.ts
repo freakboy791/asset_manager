@@ -2,7 +2,7 @@
 import type { NextApiHandler } from "next";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
-import { sendEmail } from "../../utils/email"; // relative import to avoid alias issues
+import { sendEmail } from "../../utils/email"; // server-only helper
 
 type ReqBody = {
   user_id?: string;
@@ -22,16 +22,14 @@ const handler: NextApiHandler = async (req, res) => {
     return;
   }
 
-  const body = (req.body ?? {}) as ReqBody;
-  const user_id = body.user_id ?? "";
-  const email = body.email ?? "";
-
+  const { user_id = "", email = "" } = (req.body ?? {}) as ReqBody;
   if (!user_id || !email) {
     res.status(400).json({ error: "Missing user_id/email" });
     return;
   }
 
   try {
+    // Create one-time approval token and upsert a pending profile
     const approval_token = randomUUID();
 
     const { error: upsertError } = await supabaseAdmin

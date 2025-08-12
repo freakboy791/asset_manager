@@ -1,11 +1,10 @@
-import { sendEmail } from '@/utils/email';
+// pages/api/signup.ts
+import type { NextApiHandler } from "next";
 
-await sendEmail(
-  'your-admin-email@chrismatt.com',
-  'New User Signup - Approval Required',
-  `
-    <p>A new user has signed up:</p>
-    <p>Email: ${user.email}</p>
-    <p><a href="https://asset-manager-umber-two.vercel.app/admin/approve?user=${user.id}">Approve this account</a></p>
-  `
-);
+const handler: NextApiHandler = (_req, res) => {
+  res
+    .status(405)
+    .json({ error: "Use client-side supabase.auth.signUp with emailRedirectTo." });
+};
+
+export default handler;
