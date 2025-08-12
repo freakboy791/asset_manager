@@ -3,15 +3,21 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // server-only key
+  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string
 );
 
-// GET /api/approve-user?token=abc
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   try {
-    const token = String(req.query.token || "");
-    if (!token) return res.status(400).send("Missing token");
+    const raw = req.query.token;
+    const token = Array.isArray(raw) ? raw[0] : raw;
+    if (!token) {
+      res.status(400).send("Missing token");
+      return;
+    }
 
     const { data, error } = await supabaseAdmin
       .from("profiles")
@@ -20,13 +26,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .select("email, role")
       .single();
 
-    if (error || !data) return res.status(400).send("Invalid or used token");
+    if (error || !data) {
+      res.status(400).send("Invalid or used token");
+      return;
+    }
 
     res
       .status(200)
       .send(`✅ Approved ${data.email} as ${data.role}. You can close this tab.`);
-  } catch (e: any) {
-    res.status(500).send(e.message || "Server error");
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    res.status(500).send(msg);
   }
 }
 
