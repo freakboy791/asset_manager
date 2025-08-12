@@ -1,49 +1,69 @@
 // pages/api/notify-new-user.ts
-import type { NextApiRequest, NextApiResponse } from "next";
-import { createClient } from "@supabase/supabase-js";
+import type { NextApiHandler } from "next";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { randomUUID } from "crypto";
+import { sendEmail } from "../../utils/email"; // relative import to avoid alias issues
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+type ReqBody = {
+  user_id?: string;
+  email?: string;
+};
+
+const supabaseAdmin: SupabaseClient = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string,
+  { auth: { persistSession: false } }
 );
 
-async function sendEmail(to: string, subject: string, html: string) {
-  const apiKey = process.env.RESEND_API_KEY!;
-  const resp = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      from: "Asset Tracker <noreply@yourdomain.com>",
-      to: [to],
-      subject,
-      html,
-    }),
-  });
-  if (!resp.ok) {
-    const txt = await resp.text();
-    throw new Error(`Resend error: ${txt}`);
+const handler: NextApiHandler = async (req, res) => {
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    res.status(405).end("Method Not Allowed");
+    return;
   }
-}
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const body = (req.body ?? {}) as ReqBody;
+  const user_id = body.user_id ?? "";
+  const email = body.email ?? "";
+
+  if (!user_id || !email) {
+    res.status(400).json({ error: "Missing user_id/email" });
+    return;
+  }
+
   try {
-    if (req.method !== "POST") return res.status(405).end();
+    const approval_token = randomUUID();
 
-    const { user_id, email } = req.body as { user_id: string; email: string };
-    if (!user_id || !email) return res.status(400).json({ error: "Missing user_id/email" });
-
-    // generate one-time approval token
-    const approval_token = crypto.randomUUID();
-
-    // upsert profile with pending/approved=false
     const { error: upsertError } = await supabaseAdmin
       .from("profiles")
-      .upsert({ id: user_id, email, role: "pending", approved: false, approval_token });
+      .upsert({
+        id: user_id,
+        email,
+        role: "pending",
+        approved: false,
+        approval_token,
+      });
 
-    if (upsertError) throw upsertError;
+    if (upsertError) {
+      res.status(500).json({ error: upsertError.message });
+      return;
+    }
 
-    const adminEmail = process.env.ADMIN_EMAIL!;
-    const approveUrl = `${process.env.NEXT_PUBLIC_SITE_URL || ''}/api/approve-user?token=${encodeURIComponent(approval_token)}`;
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    const adminEmail = process.env.ADMIN_EMAIL;
+
+    if (!siteUrl) {
+      res.status(500).json({ error: "NEXT_PUBLIC_SITE_URL not set" });
+      return;
+    }
+    if (!adminEmail) {
+      res.status(500).json({ error: "ADMIN_EMAIL not set" });
+      return;
+    }
+
+    const approveUrl = `${siteUrl}/api/approve-user?token=${encodeURIComponent(
+      approval_token
+    )}`;
 
     await sendEmail(
       adminEmail,
@@ -60,7 +80,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
 
     res.status(200).json({ ok: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message || "Server error" });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Server error";
+    res.status(500).json({ error: message });
   }
-}
+};
+
+export default handler;
