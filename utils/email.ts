@@ -1,33 +1,30 @@
-import { Resend } from 'resend';
+// utils/email.ts
+import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const apiKey = process.env.RESEND_API_KEY;
+const from = process.env.FROM_EMAIL; // e.g. noreply@chrismatt.com
 
-/**
- * Sends an email via Resend using the verified sending domain.
- * @param to - Recipient email address
- * @param subject - Email subject line
- * @param html - HTML body of the email
- */
+if (!apiKey) {
+  // Don't throw at import time in prod; API routes will check again.
+  console.warn("RESEND_API_KEY is not set");
+}
+if (!from) {
+  console.warn("FROM_EMAIL is not set");
+}
+
+const resend = apiKey ? new Resend(apiKey) : null;
+
+/** Send an email via Resend using your verified domain. */
 export async function sendEmail(to: string, subject: string, html: string) {
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error('RESEND_API_KEY is not set');
-  }
-  if (!process.env.FROM_EMAIL) {
-    throw new Error('FROM_EMAIL is not set');
-  }
+  if (!resend) throw new Error("RESEND_API_KEY not configured");
+  if (!from) throw new Error("FROM_EMAIL not configured");
 
-  try {
-    const response = await resend.emails.send({
-      from: `Asset Manager <${process.env.FROM_EMAIL}>`, // e.g. noreply@chrismatt.com
-      to,
-      subject,
-      html,
-    });
+  const res = await resend.emails.send({
+    from: `Asset Manager <${from}>`,
+    to,
+    subject,
+    html,
+  });
 
-    console.log('Email sent successfully:', response);
-    return response;
-  } catch (error) {
-    console.error('Error sending email:', error);
-    throw error;
-  }
+  return res;
 }
