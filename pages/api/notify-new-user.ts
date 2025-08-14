@@ -1,15 +1,15 @@
 // pages/api/notify-new-user.ts
 import type { NextApiHandler } from "next";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
-import { sendEmail } from "../../utils/email"; // server-only helper
+import { sendEmail } from "../../utils/email";
 
 type ReqBody = {
   user_id?: string;
   email?: string;
 };
 
-const supabaseAdmin: SupabaseClient = createClient(
+const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL as string,
   process.env.SUPABASE_SERVICE_ROLE_KEY as string,
   { auth: { persistSession: false } }
@@ -30,6 +30,7 @@ const handler: NextApiHandler = async (req, res) => {
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   const adminEmail = process.env.ADMIN_EMAIL;
+
   if (!siteUrl) {
     res.status(500).json({ error: "NEXT_PUBLIC_SITE_URL not set" });
     return;
@@ -40,30 +41,10 @@ const handler: NextApiHandler = async (req, res) => {
   }
 
   try {
-    // 1) Look up existing profile (if any)
-    const { data: existing, error: selErr } = await supabaseAdmin
-      .from("profiles")
-      .select("id, email, approved, role")
-      .eq("id", user_id)
-      .maybeSingle();
-
-    if (selErr) {
-      res.status(500).json({ error: selErr.message });
-      return;
-    }
-
-    // If already approved, no need to email again
-    if (existing?.approved) {
-      res.status(200).json({ ok: true, note: "User already approved; no email sent" });
-      return;
-    }
-
-    // 2) Always create a fresh one-time token
     const approval_token = randomUUID();
 
-    // 3) Upsert (create if new, or refresh token if existing)
-    //    Force role to 'pending' and approved=false until admin approves.
-    const { error: upsertErr } = await supabaseAdmin
+    // Upsert pending profile with fresh token
+    const { error: upsertError } = await supabaseAdmin
       .from("profiles")
       .upsert({
         id: user_id,
@@ -73,13 +54,14 @@ const handler: NextApiHandler = async (req, res) => {
         approval_token,
       });
 
-    if (upsertErr) {
-      res.status(500).json({ error: upsertErr.message });
+    if (upsertError) {
+      res.status(500).json({ error: upsertError.message });
       return;
     }
 
-    // 4) Email admin with the approval link
-    const approveUrl = `${siteUrl}/api/approve-user?token=${encodeURIComponent(approval_token)}`;
+    const approveUrl = `${siteUrl}/api/approve-user?token=${encodeURIComponent(
+      approval_token
+    )}`;
 
     await sendEmail(
       adminEmail,
@@ -92,7 +74,6 @@ const handler: NextApiHandler = async (req, res) => {
         </ul>
         <p>Approve this account:</p>
         <p><a href="${approveUrl}">${approveUrl}</a></p>
-        <p>If this link has already been used or expires, a new token will be generated on the next signup attempt.</p>
       `
     );
 
