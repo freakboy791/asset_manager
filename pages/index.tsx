@@ -15,30 +15,49 @@ export default function Home() {
     setMessage("");
 
     if (mode === "signup") {
+      const redirect =
+        process.env.NEXT_PUBLIC_SITE_URL
+          ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
+          : undefined;
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        // if you set NEXT_PUBLIC_SITE_URL, Supabase will use /auth/callback
-        options: process.env.NEXT_PUBLIC_SITE_URL
-          ? { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback` }
-          : undefined,
+        ...(redirect ? { options: { emailRedirectTo: redirect } } : {}),
       });
 
+      // Handle "user already exists" cleanly
       if (error) {
+        const msg = error.message?.toLowerCase() || "";
+        if (
+          msg.includes("already") ||
+          msg.includes("exists") ||
+          msg.includes("registered")
+        ) {
+          setMessage(
+            "An account already exists for this email. Please sign in or reset your password."
+          );
+          return;
+        }
         setMessage(error.message);
         return;
       }
 
+      // Only notify admin for brand-new users
       if (data.user) {
-        await fetch("/api/notify-new-user", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: data.user.id, email: data.user.email }),
-        });
+        try {
+          await fetch("/api/notify-new-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: data.user.id, email: data.user.email }),
+          });
+        } catch {
+          // Non-blocking: ignore admin email failures on client
+        }
       }
 
       setMessage(
-        "Account created. If email confirmations are enabled, check your inbox; otherwise, you can sign in now."
+        "Thanks! We’ve sent a confirmation email. Please verify your address, then an admin will approve your access."
       );
       setMode("signin");
       return;
@@ -55,16 +74,19 @@ export default function Home() {
     }
 
     if (mode === "reset") {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: process.env.NEXT_PUBLIC_SITE_URL
+      const redirect =
+        process.env.NEXT_PUBLIC_SITE_URL
           ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
-          : undefined,
+          : undefined;
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirect,
       });
       if (error) {
         setMessage(error.message);
         return;
       }
-      setMessage("Password reset email sent.");
+      setMessage("Password reset email sent. Please check your inbox.");
     }
   };
 
@@ -81,7 +103,6 @@ export default function Home() {
             className="border p-2 w-full"
             required
           />
-
           {mode !== "reset" && (
             <input
               type="password"
@@ -92,7 +113,6 @@ export default function Home() {
               className="border p-2 w-full"
             />
           )}
-
           <button
             type="submit"
             className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded"
