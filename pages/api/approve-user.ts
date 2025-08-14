@@ -2,13 +2,26 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 
+type ProfileRow = {
+  id?: string;
+  email: string;
+  role: string;
+  approved?: boolean | null;
+  approval_token?: string | null;
+};
+
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-  process.env.SUPABASE_SERVICE_ROLE_KEY as string
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string,
+  { auth: { persistSession: false } }
 );
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   try {
+    // Accept either ?token=... or ?user_id=...
     const rawToken = req.query.token;
     const token = Array.isArray(rawToken) ? rawToken[0] : rawToken;
 
@@ -20,27 +33,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return;
     }
 
-    let data: { email: string; role: string } | null = null;
+    let data: Pick<ProfileRow, "email" | "role"> | null = null;
     let error: { message: string } | null = null;
 
     if (token) {
       const resp = await supabaseAdmin
-        .from("profiles")
+        .from<ProfileRow>("profiles")
         .update({ approved: true, role: "manager", approval_token: null })
         .eq("approval_token", token)
         .select("email, role")
         .single();
-      data = (resp as any).data;
-      error = (resp as any).error;
+
+      data = resp.data ? { email: resp.data.email, role: resp.data.role } : null;
+      error = resp.error ? { message: resp.error.message } : null;
     } else if (userId) {
       const resp = await supabaseAdmin
-        .from("profiles")
+        .from<ProfileRow>("profiles")
         .update({ approved: true, role: "manager", approval_token: null })
         .eq("id", userId)
         .select("email, role")
         .single();
-      data = (resp as any).data;
-      error = (resp as any).error;
+
+      data = resp.data ? { email: resp.data.email, role: resp.data.role } : null;
+      error = resp.error ? { message: resp.error.message } : null;
     }
 
     if (error || !data) {
@@ -48,7 +63,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return;
     }
 
-    res.status(200).send(`✅ Approved ${data.email} as ${data.role}. You can close this tab.`);
+    res
+      .status(200)
+      .send(`✅ Approved ${data.email} as ${data.role}. You can close this tab.`);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";
     res.status(500).send(msg);
