@@ -4,18 +4,21 @@ import { useRouter } from "next/router";
 import supabase from "../utils/supabaseClient";
 
 type Mode = "signin" | "signup" | "reset";
+type MsgType = "success" | "error" | "";
 
 export default function Home() {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string>("");
+  const [messageType, setMessageType] = useState<MsgType>("");
   const [busy, setBusy] = useState(false);
   const router = useRouter();
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage("");
+    setMessageType("");
     setBusy(true);
 
     try {
@@ -27,6 +30,7 @@ export default function Home() {
 
         // Fail-closed: if it exists OR the check failed, do not attempt signUp.
         if (existsErr || existsData === true) {
+          setMessageType("error");
           setMessage(
             existsData === true
               ? "An account already exists for this email. Please sign in or reset your password."
@@ -48,7 +52,7 @@ export default function Home() {
         });
 
         if (error) {
-          // (Should be rare now, since we pre-check; still show server message if any)
+          setMessageType("error");
           setMessage(error.message);
           return;
         }
@@ -62,6 +66,7 @@ export default function Home() {
           });
         }
 
+        setMessageType("success");
         setMessage(
           "Thanks! We’ve sent a confirmation email. After you confirm, an admin will review and approve your access."
         );
@@ -72,6 +77,7 @@ export default function Home() {
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
+          setMessageType("error");
           setMessage(error.message);
           return;
         }
@@ -89,9 +95,11 @@ export default function Home() {
           redirectTo: redirect,
         });
         if (error) {
+          setMessageType("error");
           setMessage(error.message);
           return;
         }
+        setMessageType("success");
         setMessage("Password reset email sent. Please check your inbox.");
         return;
       }
@@ -141,27 +149,45 @@ export default function Home() {
           </button>
         </form>
 
-        {message && <p className="mt-4 text-sm">{message}</p>}
+        {message && (
+          <p
+            className={`mt-4 text-sm ${
+              messageType === "error"
+                ? "text-red-600"
+                : messageType === "success"
+                ? "text-green-600"
+                : ""
+            }`}
+          >
+            {message}
+          </p>
+        )}
 
         <div className="mt-4 flex justify-between text-sm">
           <button
             type="button"
             onClick={() => setMode("signin")}
-            className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+            className={`text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded ${
+              mode === "signin" ? "underline" : ""
+            }`}
           >
             Sign In
           </button>
           <button
             type="button"
             onClick={() => setMode("signup")}
-            className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+            className={`text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded ${
+              mode === "signup" ? "underline" : ""
+            }`}
           >
             Sign Up
           </button>
           <button
             type="button"
             onClick={() => setMode("reset")}
-            className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+            className={`text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded ${
+              mode === "reset" ? "underline" : ""
+            }`}
           >
             Reset Password
           </button>
