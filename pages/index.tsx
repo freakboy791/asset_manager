@@ -1,8 +1,8 @@
 // pages/index.tsx
 import { useState } from "react";
-import supabase from "../utils/supabaseClient"; // default import, relative path
+import supabase from "../utils/supabaseClient";
 
-type Mode = "signin" | "signup" | "reset";
+type Mode = "signin" | "signup";
 
 export default function AuthPage() {
   const [mode, setMode] = useState<Mode>("signin");
@@ -16,86 +16,41 @@ export default function AuthPage() {
 
   const onSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErr(null);
-    setMsg(null);
-    setBusy(true);
-
+    setErr(null); setMsg(null); setBusy(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) return setErr(error.message);
-
-    // Check approval
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return setErr("No user session.");
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("approved")
-      .eq("id", user.id)
-      .single();
-
-    if (!prof?.approved) {
-      setMsg("Signed in, but your account is not yet approved by an admin.");
-    } else {
-      window.location.href = "/companies";
-    }
+    window.location.href = "/companies";
   };
 
   const onSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErr(null);
-    setMsg(null);
-    setBusy(true);
+    setErr(null); setMsg(null); setBusy(true);
 
-    const redirectTo = siteUrl + "/auth/callback";
-    const { data, error } = await supabase.auth.signUp({
+    const redirectTo = siteUrl ? siteUrl + "/auth/callback" : undefined;
+    const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: redirectTo },
+      ...(redirectTo ? { options: { emailRedirectTo: redirectTo } } : {}),
     });
     setBusy(false);
     if (error) return setErr(error.message);
 
-    // Notify admin (sends approval email)
-    await fetch("/api/notify-new-user", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: data.user?.id, email }),
-    });
-
-    setMsg("Check your email to confirm. After confirmation, wait for admin approval.");
+    setMsg(
+      "Account created. If email confirmations are enabled, check your inbox; otherwise, you can sign in now."
+    );
     setMode("signin");
-  };
-
-  const onReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErr(null);
-    setMsg(null);
-    setBusy(true);
-
-    const redirectTo = siteUrl + "/auth/callback";
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo,
-    });
-    setBusy(false);
-    if (error) return setErr(error.message);
-
-    setMsg("Password reset email sent. Check your inbox.");
   };
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-100 p-6">
       <div className="w-full max-w-md bg-white border rounded p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold mb-2 text-center">AssetTRAC</h1>
+        <h1 className="text-2xl font-semibold mb-2 text-center">Asset Manager</h1>
         <p className="text-center text-gray-600 mb-6">
-          {mode === "signin" && "Sign in to your account"}
-          {mode === "signup" && "Create a new account"}
-          {mode === "reset" && "Reset your password"}
+          {mode === "signin" ? "Sign in to your account" : "Create a new account"}
         </p>
 
-        <form
-          onSubmit={mode === "signin" ? onSignIn : mode === "signup" ? onSignUp : onReset}
-          className="space-y-3"
-        >
+        <form onSubmit={mode === "signin" ? onSignIn : onSignUp} className="space-y-3">
           <input
             className="w-full border rounded p-2"
             type="email"
@@ -105,16 +60,14 @@ export default function AuthPage() {
             required
           />
 
-          {mode !== "reset" && (
-            <input
-              className="w-full border rounded p-2"
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          )}
+          <input
+            className="w-full border rounded p-2"
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
 
           {err && <div className="text-sm text-red-600">{err}</div>}
           {msg && <div className="text-sm text-green-700">{msg}</div>}
@@ -124,13 +77,7 @@ export default function AuthPage() {
             disabled={busy}
             className="w-full py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {busy
-              ? "Please wait…"
-              : mode === "signin"
-              ? "Sign In"
-              : mode === "signup"
-              ? "Create Account"
-              : "Send Reset Email"}
+            {busy ? "Please wait…" : mode === "signin" ? "Sign In" : "Create Account"}
           </button>
         </form>
 
@@ -144,12 +91,7 @@ export default function AuthPage() {
               Create account
             </button>
           )}
-
-          {mode !== "reset" && (
-            <button className="text-blue-700 hover:underline" onClick={() => setMode("reset")}>
-              Forgot password?
-            </button>
-          )}
+          <span className="text-gray-400 cursor-not-allowed">Forgot password (coming soon)</span>
         </div>
       </div>
     </main>
