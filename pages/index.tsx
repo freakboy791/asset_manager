@@ -18,6 +18,10 @@ export default function Home() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        // if you set NEXT_PUBLIC_SITE_URL, Supabase will use /auth/callback
+        options: process.env.NEXT_PUBLIC_SITE_URL
+          ? { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback` }
+          : undefined,
       });
 
       if (error) {
@@ -26,28 +30,22 @@ export default function Home() {
       }
 
       if (data.user) {
-        // Call our admin notification API
         await fetch("/api/notify-new-user", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: data.user.id,
-            email: data.user.email,
-          }),
+          body: JSON.stringify({ user_id: data.user.id, email: data.user.email }),
         });
       }
 
       setMessage(
         "Account created. If email confirmations are enabled, check your inbox; otherwise, you can sign in now."
       );
+      setMode("signin");
       return;
     }
 
     if (mode === "signin") {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         setMessage(error.message);
         return;
@@ -57,7 +55,11 @@ export default function Home() {
     }
 
     if (mode === "reset") {
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: process.env.NEXT_PUBLIC_SITE_URL
+          ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
+          : undefined,
+      });
       if (error) {
         setMessage(error.message);
         return;
@@ -79,16 +81,18 @@ export default function Home() {
             className="border p-2 w-full"
             required
           />
+
           {mode !== "reset" && (
             <input
               type="password"
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required={mode !== "reset"}
+              required
               className="border p-2 w-full"
             />
           )}
+
           <button
             type="submit"
             className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded"
@@ -100,7 +104,9 @@ export default function Home() {
               : "Reset Password"}
           </button>
         </form>
+
         {message && <p className="mt-4 text-sm">{message}</p>}
+
         <div className="mt-4 flex justify-between text-sm">
           <button onClick={() => setMode("signin")}>Sign In</button>
           <button onClick={() => setMode("signup")}>Sign Up</button>
