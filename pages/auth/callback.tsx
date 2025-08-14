@@ -1,36 +1,30 @@
 // pages/auth/callback.tsx
 import { useEffect } from "react";
 import { useRouter } from "next/router";
-import supabase from "@/utils/supabaseClient";
+import supabase from "../../utils/supabaseClient"; // use relative path to avoid alias issues
 
 export default function AuthCallback() {
   const router = useRouter();
 
   useEffect(() => {
-    const handleAuth = async () => {
-      const { data, error } = await supabase.auth.getSession();
-
+    const run = async () => {
+      // Exchange the code in the URL for a session (handles confirm/reset links)
+      const { error } = await supabase.auth.exchangeCodeForSession(window.location.href);
       if (error) {
-        console.error("Error getting session:", error.message);
+        console.error("Auth callback error:", error.message);
+        // Send back to login if something goes wrong
+        router.replace("/");
         return;
       }
-
-      if (data.session) {
-        // User is logged in, redirect to home or dashboard
-        router.push("/companies");
-      } else {
-        console.warn("No active session found");
-        router.push("/");
-      }
+      // Success: send them into the app (you can change the target later)
+      router.replace("/");
     };
-
-    void handleAuth();
+    void run();
   }, [router]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <p>Signing you in...</p>
+    <div className="flex min-h-screen items-center justify-center">
+      <p className="text-lg">Finalizing sign-in…</p>
     </div>
   );
 }
-
