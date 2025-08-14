@@ -1,99 +1,112 @@
 // pages/index.tsx
 import { useState } from "react";
+import { useRouter } from "next/router";
 import supabase from "../utils/supabaseClient";
 
-type Mode = "signin" | "signup";
-
-export default function AuthPage() {
-  const [mode, setMode] = useState<Mode>("signin");
+export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
+  const [message, setMessage] = useState("");
+  const router = useRouter();
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
-
-  const onSignIn = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErr(null); setMsg(null); setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) return setErr(error.message);
-    window.location.href = "/companies";
-  };
+    setMessage("");
 
-  const onSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErr(null); setMsg(null); setBusy(true);
+    if (mode === "signup") {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
 
-    const redirectTo = siteUrl ? siteUrl + "/auth/callback" : undefined;
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      ...(redirectTo ? { options: { emailRedirectTo: redirectTo } } : {}),
-    });
-    setBusy(false);
-    if (error) return setErr(error.message);
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
 
-    setMsg(
-      "Account created. If email confirmations are enabled, check your inbox; otherwise, you can sign in now."
-    );
-    setMode("signin");
+      if (data.user) {
+        // Call our admin notification API
+        await fetch("/api/notify-new-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: data.user.id,
+            email: data.user.email,
+          }),
+        });
+      }
+
+      setMessage(
+        "Account created. If email confirmations are enabled, check your inbox; otherwise, you can sign in now."
+      );
+      return;
+    }
+
+    if (mode === "signin") {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+      router.push("/companies");
+      return;
+    }
+
+    if (mode === "reset") {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+      setMessage("Password reset email sent.");
+    }
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-100 p-6">
-      <div className="w-full max-w-md bg-white border rounded p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold mb-2 text-center">Asset Manager</h1>
-        <p className="text-center text-gray-600 mb-6">
-          {mode === "signin" ? "Sign in to your account" : "Create a new account"}
-        </p>
-
-        <form onSubmit={mode === "signin" ? onSignIn : onSignUp} className="space-y-3">
+    <div className="flex min-h-screen items-center justify-center bg-gray-100">
+      <div className="bg-white p-8 shadow rounded w-full max-w-sm">
+        <h1 className="text-2xl mb-4 capitalize">{mode}</h1>
+        <form onSubmit={handleAuth} className="space-y-4">
           <input
-            className="w-full border rounded p-2"
             type="email"
-            placeholder="Email address"
+            placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            className="border p-2 w-full"
             required
           />
-
-          <input
-            className="w-full border rounded p-2"
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-
-          {err && <div className="text-sm text-red-600">{err}</div>}
-          {msg && <div className="text-sm text-green-700">{msg}</div>}
-
+          {mode !== "reset" && (
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required={mode !== "reset"}
+              className="border p-2 w-full"
+            />
+          )}
           <button
             type="submit"
-            disabled={busy}
-            className="w-full py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded"
           >
-            {busy ? "Please wait…" : mode === "signin" ? "Sign In" : "Create Account"}
+            {mode === "signin"
+              ? "Sign In"
+              : mode === "signup"
+              ? "Sign Up"
+              : "Reset Password"}
           </button>
         </form>
-
-        <div className="mt-4 flex items-center justify-between text-sm">
-          {mode !== "signin" ? (
-            <button className="text-blue-700 hover:underline" onClick={() => setMode("signin")}>
-              Back to Sign In
-            </button>
-          ) : (
-            <button className="text-blue-700 hover:underline" onClick={() => setMode("signup")}>
-              Create account
-            </button>
-          )}
-          <span className="text-gray-400 cursor-not-allowed">Forgot password (coming soon)</span>
+        {message && <p className="mt-4 text-sm">{message}</p>}
+        <div className="mt-4 flex justify-between text-sm">
+          <button onClick={() => setMode("signin")}>Sign In</button>
+          <button onClick={() => setMode("signup")}>Sign Up</button>
+          <button onClick={() => setMode("reset")}>Reset Password</button>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
