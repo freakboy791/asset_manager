@@ -9,43 +9,22 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const run = async () => {
-      // 1) Turn the confirmation/reset link into a session
-      const { error: exchError } = await supabase.auth.exchangeCodeForSession(window.location.href);
-      if (exchError) {
-        console.error("Auth callback error:", exchError.message);
-        setMsg("Could not finalize sign-in. Please try again.");
-        setTimeout(() => router.replace("/"), 1500);
-        return;
+      try {
+        // First, try to exchange the code in the URL for a session
+        const { error: exchError } = await supabase.auth.exchangeCodeForSession(window.location.href);
+        if (exchError) {
+          // Fallback: maybe we already have a valid session (e.g., link clicked twice)
+          const { data, error: sessErr } = await supabase.auth.getSession();
+          if (sessErr || !data.session) throw exchError; // still no session — treat as error
+        }
+        setMsg("Success! Redirecting…");
+        setTimeout(() => router.replace("/"), 300);
+      } catch {
+        // Quietly send the user to the homepage to try signing in
+        setMsg("Could not finalize sign-in. Redirecting…");
+        setTimeout(() => router.replace("/"), 800);
       }
-
-      // 2) Get the now-authenticated user
-      const { data: { user }, error: userErr } = await supabase.auth.getUser();
-      if (userErr || !user) {
-        console.error("No user after callback:", userErr?.message);
-        setMsg("No user session. Redirecting to sign in…");
-        setTimeout(() => router.replace("/"), 1500);
-        return;
-      }
-
-      // 3) Ensure a profile row exists (insert if missing). Role starts as 'pending'.
-      const { error: upsertErr } = await supabase
-        .from("profiles")
-        .upsert({
-          id: user.id,
-          email: user.email ?? "",
-          role: "pending",
-          approved: false,
-        }, { onConflict: "id" });
-
-      if (upsertErr) {
-        console.error("Profile upsert failed:", upsertErr.message);
-        // Don’t block the user here; we’ll just take them to the app
-      }
-
-      setMsg("Success! Redirecting…");
-      setTimeout(() => router.replace("/"), 800);
     };
-
     void run();
   }, [router]);
 
@@ -55,4 +34,3 @@ export default function AuthCallback() {
     </div>
   );
 }
-
