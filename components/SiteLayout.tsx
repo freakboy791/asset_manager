@@ -5,7 +5,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900">
       <header className="bg-white border-b">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/" className="font-semibold">Asset Tracker</Link>
+          <Link href="/" className="font-semibold">AssetTRAC</Link>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/" className="hover:text-blue-600">Home</Link>
             <Link href="/companies" className="hover:text-blue-600">Companies</Link>
@@ -19,7 +19,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
 
       <footer className="bg-white border-t">
         <div className="max-w-6xl mx-auto px-4 h-12 text-sm text-gray-500 flex items-center">
-          © {new Date().getFullYear()} Asset Manager
+          © {new Date().getFullYear()} AssetTRAC
         </div>
       </footer>
     </div>

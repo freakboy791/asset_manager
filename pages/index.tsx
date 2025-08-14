@@ -85,7 +85,7 @@ export default function AuthPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-100 p-6">
       <div className="w-full max-w-md bg-white border rounded p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold mb-2 text-center">Asset Manager</h1>
+        <h1 className="text-2xl font-semibold mb-2 text-center">AssetTRAC</h1>
         <p className="text-center text-gray-600 mb-6">
           {mode === "signin" && "Sign in to your account"}
           {mode === "signup" && "Create a new account"}
