@@ -144,9 +144,27 @@ export default function Home() {
         {message && <p className="mt-4 text-sm">{message}</p>}
 
         <div className="mt-4 flex justify-between text-sm">
-          <button onClick={() => setMode("signin")}>Sign In</button>
-          <button onClick={() => setMode("signup")}>Sign Up</button>
-          <button onClick={() => setMode("reset")}>Reset Password</button>
+          <button
+            type="button"
+            onClick={() => setMode("signin")}
+            className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("signup")}
+            className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+          >
+            Sign Up
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("reset")}
+            className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+          >
+            Reset Password
+          </button>
         </div>
       </div>
     </div>
