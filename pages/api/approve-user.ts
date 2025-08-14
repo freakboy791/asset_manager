@@ -2,13 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 
-type ProfileRow = {
-  id?: string;
-  email: string;
-  role: string;
-  approved?: boolean | null;
-  approval_token?: string | null;
-};
+type SelectedProfile = { email: string; role: string };
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL as string,
@@ -29,23 +23,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return;
     }
 
-    let data: Pick<ProfileRow, "email" | "role"> | null = null;
+    let data: SelectedProfile | null = null;
+
     if (token) {
-      const resp = await supabaseAdmin
-        .from<ProfileRow>("profiles")
+      const { data: d, error } = await supabaseAdmin
+        .from("profiles")
         .update({ approved: true, role: "manager", approval_token: null })
         .eq("approval_token", token)
         .select("email, role")
         .single();
-      if (!resp.error && resp.data) data = { email: resp.data.email, role: resp.data.role };
+
+      if (!error && d) {
+        const { email, role } = d as SelectedProfile;
+        data = { email, role };
+      }
     } else if (userId) {
-      const resp = await supabaseAdmin
-        .from<ProfileRow>("profiles")
+      const { data: d, error } = await supabaseAdmin
+        .from("profiles")
         .update({ approved: true, role: "manager", approval_token: null })
         .eq("id", userId)
         .select("email, role")
         .single();
-      if (!resp.error && resp.data) data = { email: resp.data.email, role: resp.data.role };
+
+      if (!error && d) {
+        const { email, role } = d as SelectedProfile;
+        data = { email, role };
+      }
     }
 
     if (!data) {
