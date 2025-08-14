@@ -3,90 +3,100 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 import supabase from "../utils/supabaseClient";
 
+type Mode = "signin" | "signup" | "reset";
+
 export default function Home() {
+  const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<string>("");
+  const [busy, setBusy] = useState(false);
   const router = useRouter();
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage("");
+    setBusy(true);
 
-    if (mode === "signup") {
-      const redirect =
-        process.env.NEXT_PUBLIC_SITE_URL
-          ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
-          : undefined;
+    try {
+      if (mode === "signup") {
+        // 1) Pre-check: does an account already exist for this email?
+        const { data: existsData, error: existsErr } = await supabase.rpc("user_exists", {
+          p_email: email,
+        });
 
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        ...(redirect ? { options: { emailRedirectTo: redirect } } : {}),
-      });
-
-      // Handle "user already exists" cleanly
-      if (error) {
-        const msg = error.message?.toLowerCase() || "";
-        if (
-          msg.includes("already") ||
-          msg.includes("exists") ||
-          msg.includes("registered")
-        ) {
+        // Fail-closed: if it exists OR the check failed, do not attempt signUp.
+        if (existsErr || existsData === true) {
           setMessage(
-            "An account already exists for this email. Please sign in or reset your password."
+            existsData === true
+              ? "An account already exists for this email. Please sign in or reset your password."
+              : "We couldn’t verify this email right now. Please try signing in or resetting your password."
           );
           return;
         }
-        setMessage(error.message);
-        return;
-      }
 
-      // Only notify admin for brand-new users
-      if (data.user) {
-        try {
-          await fetch("/api/notify-new-user", {
+        const redirect =
+          process.env.NEXT_PUBLIC_SITE_URL
+            ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
+            : undefined;
+
+        // 2) Create account with redirect for email confirmation
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          ...(redirect ? { options: { emailRedirectTo: redirect } } : {}),
+        });
+
+        if (error) {
+          // (Should be rare now, since we pre-check; still show server message if any)
+          setMessage(error.message);
+          return;
+        }
+
+        // 3) Fire admin notification (non-blocking)
+        if (data.user) {
+          void fetch("/api/notify-new-user", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ user_id: data.user.id, email: data.user.email }),
           });
-        } catch {
-          // Non-blocking: ignore admin email failures on client
         }
-      }
 
-      setMessage(
-        "Thanks! We’ve sent a confirmation email. Please verify your address, then an admin will approve your access."
-      );
-      setMode("signin");
-      return;
-    }
-
-    if (mode === "signin") {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        setMessage(error.message);
+        setMessage(
+          "Thanks! We’ve sent a confirmation email. After you confirm, an admin will review and approve your access."
+        );
+        setMode("signin");
         return;
       }
-      router.push("/companies");
-      return;
-    }
 
-    if (mode === "reset") {
-      const redirect =
-        process.env.NEXT_PUBLIC_SITE_URL
-          ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
-          : undefined;
-
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirect,
-      });
-      if (error) {
-        setMessage(error.message);
+      if (mode === "signin") {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          setMessage(error.message);
+          return;
+        }
+        router.push("/companies");
         return;
       }
-      setMessage("Password reset email sent. Please check your inbox.");
+
+      if (mode === "reset") {
+        const redirect =
+          process.env.NEXT_PUBLIC_SITE_URL
+            ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
+            : undefined;
+
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: redirect,
+        });
+        if (error) {
+          setMessage(error.message);
+          return;
+        }
+        setMessage("Password reset email sent. Please check your inbox.");
+        return;
+      }
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -94,30 +104,36 @@ export default function Home() {
     <div className="flex min-h-screen items-center justify-center bg-gray-100">
       <div className="bg-white p-8 shadow rounded w-full max-w-sm">
         <h1 className="text-2xl mb-4 capitalize">{mode}</h1>
+
         <form onSubmit={handleAuth} className="space-y-4">
           <input
             type="email"
             placeholder="Email"
+            className="border p-2 w-full"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="border p-2 w-full"
             required
           />
+
           {mode !== "reset" && (
             <input
               type="password"
               placeholder="Password"
+              className="border p-2 w-full"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="border p-2 w-full"
             />
           )}
+
           <button
             type="submit"
-            className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded"
+            disabled={busy}
+            className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white py-2 px-4 rounded w-full"
           >
-            {mode === "signin"
+            {busy
+              ? "Please wait…"
+              : mode === "signin"
               ? "Sign In"
               : mode === "signup"
               ? "Sign Up"
