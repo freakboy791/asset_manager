@@ -3,19 +3,21 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import supabase from "../../utils/supabaseClient";
 
-type Stage = "loading" | "ready" | "need-email" | "done" | "error";
+type Stage = "loading" | "need-email" | "ready" | "done" | "error";
 
-function getParamAnywhere(name: string): string {
-  if (typeof window === "undefined") return "";
-  const url = new URL(window.location.href);
-  // 1) query string ?code=...
-  const fromQuery = url.searchParams.get(name);
-  if (fromQuery) return fromQuery;
+function parseHashAndQuery(urlStr: string) {
+  const out: Record<string, string> = {};
+  const url = new URL(urlStr);
 
-  // 2) hash fragment #code=...&type=...
+  // Query params
+  url.searchParams.forEach((v, k) => (out[k] = v));
+
+  // Hash params (#a=b&c=d)
   const hash = url.hash.startsWith("#") ? url.hash.slice(1) : url.hash;
-  const hashParams = new URLSearchParams(hash);
-  return hashParams.get(name) || "";
+  const hp = new URLSearchParams(hash);
+  hp.forEach((v, k) => (out[k] = v));
+
+  return out;
 }
 
 export default function ResetPassword() {
@@ -29,58 +31,79 @@ export default function ResetPassword() {
   const [pw1, setPw1] = useState("");
   const [pw2, setPw2] = useState("");
 
-  const code = useMemo(() => getParamAnywhere("code"), []);
-  const linkType = useMemo(() => getParamAnywhere("type") || "recovery", []);
+  const params = useMemo(() => {
+    if (typeof window === "undefined") return {};
+    return parseHashAndQuery(window.location.href);
+  }, []);
+
+  const code = (params["code"] || "").trim();               // PKCE/magic
+  const token_hash = (params["token_hash"] || "").trim();    // legacy/hash
+  const access_token = (params["access_token"] || "").trim();// token flow
+  const refresh_token = (params["refresh_token"] || "").trim();
+  const linkType = (params["type"] || "recovery").trim();
 
   useEffect(() => {
     const run = async () => {
-      // Try PKCE first (works if the same browser requested the reset)
-      const { error: exchError } = await supabase.auth.exchangeCodeForSession(
+      // 1) Best case: PKCE flow (works if same browser initiated reset)
+      const { error: exchErr } = await supabase.auth.exchangeCodeForSession(
         typeof window !== "undefined" ? window.location.href : ""
       );
 
-      if (!exchError) {
-        setStage("ready"); // already have a session, can set password
+      if (!exchErr) {
+        setStage("ready");
         return;
       }
 
-      // No PKCE verifier available (e.g., clicked in another browser/app)
-      // If we DO have a code, we can verify via OTP using email + code (no PKCE).
-      if (code) {
-        setStage("need-email"); // ask for email, then verify via OTP
+      // 2) Token flow: setSession with access/refresh tokens in the URL
+      if (access_token && refresh_token) {
+        const { error: sessErr } = await supabase.auth.setSession({
+          access_token,
+          refresh_token,
+        });
+        if (!sessErr) {
+          setStage("ready");
+          return;
+        }
+      }
+
+      // 3) No direct session yet. If we have a code or token_hash, we can verify via OTP with email.
+      if (code || token_hash) {
+        setStage("need-email");
         return;
       }
 
-      // No code found anywhere → hard failure
+      // 4) Otherwise, we truly don't have what we need.
       setError(
-        "Invalid request: missing code. Please request a new reset link from the sign-in page."
+        "Invalid request: missing credentials. Please request a new reset link from the sign-in page."
       );
       setStage("error");
     };
 
     void run();
-  }, [code]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, token_hash, access_token, refresh_token, linkType]);
 
-  // Step A: If no PKCE, verify via OTP (requires email + code)
+  // Step A: Fallback — verify via OTP using email + (code || token_hash)
   const handleVerifyEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setMsg("");
 
     if (!email) {
-      setError("Please enter your account email.");
-      return;
-    }
-    if (!code) {
-      setError("Missing reset code. Request a new link from the sign-in page.");
+      setError("Please enter the email for the account you’re resetting.");
       return;
     }
 
-    // type is usually "recovery"
+    const token = code || token_hash;
+    if (!token) {
+      setError("Missing reset token. Please request a new link.");
+      return;
+    }
+
     const { error: vErr } = await supabase.auth.verifyOtp({
       email,
-      token: code,
-      type: linkType as "recovery" | "magiclink" | "signup" | "invite" | "email_change",
+      token,
+      type: (linkType as any) || "recovery",
     });
 
     if (vErr) {
@@ -88,7 +111,7 @@ export default function ResetPassword() {
       return;
     }
 
-    // Verified → we now have a session, can set the new password
+    // Verified → session established → proceed to set new password
     setStage("ready");
   };
 
@@ -118,7 +141,7 @@ export default function ResetPassword() {
     setTimeout(() => router.replace("/"), 1200);
   };
 
-  // -------- RENDER --------
+  // ---------- RENDER ----------
 
   if (stage === "loading") {
     return (
@@ -151,7 +174,7 @@ export default function ResetPassword() {
         >
           <h1 className="text-xl font-semibold">Confirm your email</h1>
           <p className="text-sm text-gray-600">
-            Enter the email of the account you’re resetting. Then you’ll set a new password.
+            Enter the email for the account you’re resetting. Then you’ll set a new password.
           </p>
 
           <input
