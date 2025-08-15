@@ -1,147 +1,78 @@
 // pages/companies.tsx
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import supabase from "../utils/supabaseClient";
-
-type Company = {
-  id: number;
-  name: string;
-  created_at: string;
-};
+import { useRouter } from "next/router";
+import supabase from "@/utils/supabaseClient";
 
 export default function CompaniesPage() {
   const [loading, setLoading] = useState(true);
-  const [approved, setApproved] = useState<boolean | null>(null);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const router = useRouter();
 
   useEffect(() => {
-    const run = async () => {
-      setLoading(true);
-      setError(null);
+    const checkProfileAndFetch = async () => {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-      // 1) Ensure there is a logged-in user
-      const { data: userData, error: userErr } = await supabase.auth.getUser();
-      if (userErr || !userData.user) {
-        setError("You are not signed in.");
-        setLoading(false);
+      if (userError || !user) {
+        router.push("/");
         return;
       }
 
-      // 2) Read this user's profile.approved
-      const { data: profile, error: profErr } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("approved")
-        .eq("id", userData.user.id)
+        .select("role, company_id")
+        .eq("id", user.id)
         .single();
 
-      if (profErr) {
-        // If profile missing (first login), treat as unapproved until it's created
-        setApproved(false);
-      } else {
-        setApproved(!!profile?.approved);
+      if (profileError || !profile) {
+        router.push("/");
+        return;
       }
 
-      // 3) If approved, load companies; if not, skip querying data
-      if (profile?.approved) {
-        const { data: rows, error: compErr } = await supabase
-          .from("companies")
-          .select("id, name, created_at")
-          .order("created_at", { ascending: false });
+      // Redirect managers without a company to the setup page
+      if (profile.role === "manager" && !profile.company_id) {
+        router.push("/company/setup");
+        return;
+      }
 
-        if (compErr) {
-          setError(compErr.message);
-        } else {
-          setCompanies(rows || []);
-        }
+      // Optional: Admins see all companies
+      if (profile.role === "admin") {
+        const { data: allCompanies } = await supabase.from("companies").select("*");
+        setCompanies(allCompanies || []);
+      } else {
+        // Regular users/managers only see their own company
+        const { data: userCompany } = await supabase
+          .from("companies")
+          .select("*")
+          .eq("id", profile.company_id);
+
+        setCompanies(userCompany || []);
       }
 
       setLoading(false);
     };
 
-    void run();
-  }, []);
+    checkProfileAndFetch();
+  }, [router]);
 
-  if (loading) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <p>Loading…</p>
-      </main>
-    );
-  }
+  if (loading) return <p className="p-4">Loading...</p>;
 
-  // Not signed in or other error
-  if (error && approved === null) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="bg-white border rounded p-6 w-full max-w-md text-center">
-          <p className="text-red-600">{error}</p>
-          <div className="mt-4">
-            <Link className="text-blue-600 underline" href="/">Go to Sign In</Link>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  // Signed in but NOT approved yet
-  if (approved === false) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="bg-white border rounded p-6 w-full max-w-lg text-center">
-          <h1 className="text-xl font-semibold mb-2">Awaiting Admin Approval</h1>
-          <p className="text-gray-700">
-            Your account is created and your email is verified, but an admin must approve your access
-            before you can use the app.
-          </p>
-          <p className="mt-2 text-gray-600">
-            If this takes longer than expected, please contact support or try again later.
-          </p>
-          <div className="mt-6 flex items-center justify-center gap-4">
-            <Link className="text-blue-600 underline" href="/">Back to Sign In</Link>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  // Approved: show companies list
   return (
-    <main className="min-h-screen bg-gray-100 p-6">
-      <div className="mx-auto max-w-3xl">
-        <header className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Companies</h1>
-          <Link
-            href="/companies/new"
-            className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
-          >
-            Add Company
-          </Link>
-        </header>
-
-        {companies.length === 0 ? (
-          <div className="bg-white border rounded p-6 text-center">
-            <p className="text-gray-700">No companies yet.</p>
-          </div>
-        ) : (
-          <ul className="bg-white border rounded divide-y">
-            {companies.map((c) => (
-              <li key={c.id} className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{c.name}</p>
-                  <p className="text-xs text-gray-500">Created: {new Date(c.created_at).toLocaleString()}</p>
-                </div>
-                <Link
-                  href={`/companies/${c.id}`}
-                  className="text-blue-600 hover:underline"
-                >
-                  View
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </main>
+    <div className="p-4">
+      <h1 className="text-xl font-bold mb-4">Your Company</h1>
+      {companies.map((company) => (
+        <div
+          key={company.id}
+          className="border border-gray-300 rounded p-4 mb-4 shadow-sm bg-white"
+        >
+          <h2 className="text-lg font-semibold">{company.name}</h2>
+          <p>{company.city}, {company.state}</p>
+          <p>{company.email}</p>
+          <p className="text-sm text-gray-600">{company.note}</p>
+        </div>
+      ))}
+    </div>
   );
 }
