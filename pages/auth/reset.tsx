@@ -5,6 +5,15 @@ import supabase from "../../utils/supabaseClient";
 
 type Stage = "loading" | "need-email" | "ready" | "done" | "error";
 
+// Types accepted by Supabase for verifyOtp "type"
+type EmailOtpType = "recovery" | "magiclink" | "signup" | "invite" | "email_change";
+
+function toEmailOtpType(value: string | null | undefined): EmailOtpType {
+  const v = (value || "").trim().toLowerCase();
+  const allowed: EmailOtpType[] = ["recovery", "magiclink", "signup", "invite", "email_change"];
+  return (allowed as readonly string[]).includes(v) ? (v as EmailOtpType) : "recovery";
+}
+
 function parseHashAndQuery(urlStr: string) {
   const out: Record<string, string> = {};
   const url = new URL(urlStr);
@@ -36,15 +45,15 @@ export default function ResetPassword() {
     return parseHashAndQuery(window.location.href);
   }, []);
 
-  const code = (params["code"] || "").trim();               // PKCE/magic
-  const token_hash = (params["token_hash"] || "").trim();    // legacy/hash
-  const access_token = (params["access_token"] || "").trim();// token flow
+  const code = (params["code"] || "").trim(); // PKCE/magic
+  const token_hash = (params["token_hash"] || "").trim(); // legacy/hash
+  const access_token = (params["access_token"] || "").trim(); // token flow
   const refresh_token = (params["refresh_token"] || "").trim();
-  const linkType = (params["type"] || "recovery").trim();
+  const linkType: EmailOtpType = toEmailOtpType(params["type"] || "recovery");
 
   useEffect(() => {
     const run = async () => {
-      // 1) Best case: PKCE flow (works if same browser initiated reset)
+      // 1) Try PKCE (works if same browser initiated reset)
       const { error: exchErr } = await supabase.auth.exchangeCodeForSession(
         typeof window !== "undefined" ? window.location.href : ""
       );
@@ -54,7 +63,7 @@ export default function ResetPassword() {
         return;
       }
 
-      // 2) Token flow: setSession with access/refresh tokens in the URL
+      // 2) Token flow: setSession with access/refresh tokens in URL
       if (access_token && refresh_token) {
         const { error: sessErr } = await supabase.auth.setSession({
           access_token,
@@ -66,13 +75,13 @@ export default function ResetPassword() {
         }
       }
 
-      // 3) No direct session yet. If we have a code or token_hash, we can verify via OTP with email.
+      // 3) Fallback: ask for email and verify via OTP (no PKCE required)
       if (code || token_hash) {
         setStage("need-email");
         return;
       }
 
-      // 4) Otherwise, we truly don't have what we need.
+      // 4) Nothing usable found
       setError(
         "Invalid request: missing credentials. Please request a new reset link from the sign-in page."
       );
@@ -80,10 +89,9 @@ export default function ResetPassword() {
     };
 
     void run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, token_hash, access_token, refresh_token, linkType]);
+  }, [access_token, refresh_token, code, token_hash, linkType]);
 
-  // Step A: Fallback — verify via OTP using email + (code || token_hash)
+  // Step A: If no PKCE session, verify via OTP using email + (code || token_hash)
   const handleVerifyEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -103,7 +111,7 @@ export default function ResetPassword() {
     const { error: vErr } = await supabase.auth.verifyOtp({
       email,
       token,
-      type: (linkType as any) || "recovery",
+      type: linkType,
     });
 
     if (vErr) {
