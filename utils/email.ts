@@ -20,7 +20,7 @@ export async function sendEmail(to: string, subject: string, html: string) {
   if (!from) throw new Error("FROM_EMAIL not configured");
 
   const res = await resend.emails.send({
-    from: `Asset Manager <${from}>`,
+    from: `assetTRAC Admin <${from}>`,
     to,
     subject,
     html,
