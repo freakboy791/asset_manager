@@ -240,7 +240,7 @@ export default function ResetPassword() {
           placeholder="Confirm new password"
           value={pw2}
           onChange={(e) => setPw2(e.target.value)}
-          minLength={8}
+          minLength={6}
           required
         />
 
