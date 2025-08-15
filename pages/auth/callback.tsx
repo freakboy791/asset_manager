@@ -1,36 +1,26 @@
 // pages/auth/callback.tsx
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/router";
 import supabase from "../../utils/supabaseClient";
 
 export default function AuthCallback() {
   const router = useRouter();
-  const [msg, setMsg] = useState("Finalizing sign-in…");
 
   useEffect(() => {
-    const run = async () => {
-      try {
-        // First, try to exchange the code in the URL for a session
-        const { error: exchError } = await supabase.auth.exchangeCodeForSession(window.location.href);
-        if (exchError) {
-          // Fallback: maybe we already have a valid session (e.g., link clicked twice)
-          const { data, error: sessErr } = await supabase.auth.getSession();
-          if (sessErr || !data.session) throw exchError; // still no session — treat as error
-        }
-        setMsg("Success! Redirecting…");
-        setTimeout(() => router.replace("/"), 300);
-      } catch {
-        // Quietly send the user to the homepage to try signing in
-        setMsg("Could not finalize sign-in. Redirecting…");
-        setTimeout(() => router.replace("/"), 800);
+    const finalizeSignIn = async () => {
+      // Supabase stores session from the URL hash automatically
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error || !data.session) {
+        console.error("Could not finalize sign-in:", error);
+        return;
       }
+
+      router.push("/companies");
     };
-    void run();
+
+    finalizeSignIn();
   }, [router]);
 
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <p className="text-lg">{msg}</p>
-    </div>
-  );
+  return <p className="text-center mt-10">Finalizing sign-in…</p>;
 }
