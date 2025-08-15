@@ -5,54 +5,63 @@ import supabase from "../../utils/supabaseClient";
 
 type Stage = "loading" | "ready" | "need-email" | "done" | "error";
 
+function getParamAnywhere(name: string): string {
+  if (typeof window === "undefined") return "";
+  const url = new URL(window.location.href);
+  // 1) query string ?code=...
+  const fromQuery = url.searchParams.get(name);
+  if (fromQuery) return fromQuery;
+
+  // 2) hash fragment #code=...&type=...
+  const hash = url.hash.startsWith("#") ? url.hash.slice(1) : url.hash;
+  const hashParams = new URLSearchParams(hash);
+  return hashParams.get(name) || "";
+}
+
 export default function ResetPassword() {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>("loading");
-  const [error, setError] = useState<string>("");
-  const [msg, setMsg] = useState<string>("");
+  const [error, setError] = useState("");
+  const [msg, setMsg] = useState("");
 
   // form state
   const [email, setEmail] = useState("");
   const [pw1, setPw1] = useState("");
   const [pw2, setPw2] = useState("");
 
-  const code = useMemo(() => {
-    if (typeof window === "undefined") return "";
-    const u = new URL(window.location.href);
-    // Supabase sends `code` for recovery links
-    return u.searchParams.get("code") || "";
-  }, []);
+  const code = useMemo(() => getParamAnywhere("code"), []);
+  const linkType = useMemo(() => getParamAnywhere("type") || "recovery", []);
 
   useEffect(() => {
     const run = async () => {
-      // 1) Best case: PKCE flow — works if the same browser initiated the reset
+      // Try PKCE first (works if the same browser requested the reset)
       const { error: exchError } = await supabase.auth.exchangeCodeForSession(
         typeof window !== "undefined" ? window.location.href : ""
       );
 
       if (!exchError) {
-        // We already have a session; user can directly set a new password
-        setStage("ready");
+        setStage("ready"); // already have a session, can set password
         return;
       }
 
-      // 2) Fallback: require email + code to verify via OTP (no PKCE required)
-      if (!code) {
-        setError(
-          "Invalid request: missing code. Please request a new reset link from the sign-in page."
-        );
-        setStage("error");
+      // No PKCE verifier available (e.g., clicked in another browser/app)
+      // If we DO have a code, we can verify via OTP using email + code (no PKCE).
+      if (code) {
+        setStage("need-email"); // ask for email, then verify via OTP
         return;
       }
 
-      setStage("need-email");
+      // No code found anywhere → hard failure
+      setError(
+        "Invalid request: missing code. Please request a new reset link from the sign-in page."
+      );
+      setStage("error");
     };
 
-    run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void run();
   }, [code]);
 
-  // Step A: If we needed email (fallback), verify the OTP first
+  // Step A: If no PKCE, verify via OTP (requires email + code)
   const handleVerifyEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -67,10 +76,11 @@ export default function ResetPassword() {
       return;
     }
 
+    // type is usually "recovery"
     const { error: vErr } = await supabase.auth.verifyOtp({
       email,
       token: code,
-      type: "recovery",
+      type: linkType as "recovery" | "magiclink" | "signup" | "invite" | "email_change",
     });
 
     if (vErr) {
@@ -78,11 +88,11 @@ export default function ResetPassword() {
       return;
     }
 
-    // Verification succeeded; user now has a session and can set a new password
+    // Verified → we now have a session, can set the new password
     setStage("ready");
   };
 
-  // Step B: When verified / session is present, allow setting new password
+  // Step B: With a session, update the password
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -108,7 +118,7 @@ export default function ResetPassword() {
     setTimeout(() => router.replace("/"), 1200);
   };
 
-  // ------- RENDER --------
+  // -------- RENDER --------
 
   if (stage === "loading") {
     return (
@@ -175,7 +185,7 @@ export default function ResetPassword() {
     );
   }
 
-  // stage === "ready": set a new password
+  // stage === "ready"
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-100">
       <form
