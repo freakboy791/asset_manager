@@ -1,29 +1,26 @@
 // pages/auth/callback.tsx
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/router";
 import supabase from "../../utils/supabaseClient";
 
 export default function AuthCallback() {
   const router = useRouter();
-  const [message, setMessage] = useState("Finalizing sign-in…");
 
   useEffect(() => {
-    const handleCallback = async () => {
-      const { error } = await supabase.auth.exchangeCodeForSession(window.location.href);
-      if (error) {
-        setMessage("Could not finalize sign-in. Redirecting…");
+    const finalizeSignIn = async () => {
+      // Supabase stores session from the URL hash automatically
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error || !data.session) {
+        console.error("Could not finalize sign-in:", error);
+        return;
       }
-      setTimeout(() => router.push("/companies"), 1500);
+
+      router.push("/companies");
     };
 
-    handleCallback();
+    finalizeSignIn();
   }, [router]);
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100">
-      <div className="bg-white p-6 rounded shadow text-center">
-        <p>{message}</p>
-      </div>
-    </div>
-  );
+  return <p className="text-center mt-10">Finalizing sign-in…</p>;
 }
