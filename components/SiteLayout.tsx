@@ -1,18 +1,14 @@
 // components/SiteLayout.tsx
 import Link from "next/link";
+import { useRouter } from "next/router";
+import { ReactNode } from "react";
 
-export default function SiteLayout({
-  children,
-  pathname,
-}: {
-  children: React.ReactNode;
-  pathname: string;
-}) {
-  const showLayout = pathname !== "/";
+export default function SiteLayout({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const path = router.pathname || "/";
+  const hideLayout = path === "/" || path.startsWith("/auth");
 
-  if (!showLayout) {
-    return <>{children}</>; // Login page: no layout
-  }
+  if (hideLayout) return <>{children}</>;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -20,12 +16,8 @@ export default function SiteLayout({
         <div className="flex justify-between items-center max-w-7xl mx-auto">
           <h1 className="text-xl font-bold">assetTRAC</h1>
           <nav className="space-x-4">
-            <Link href="/companies" className="hover:underline">
-              Companies
-            </Link>
-            <Link href="/assets" className="hover:underline">
-              Assets
-            </Link>
+            <Link href="/companies" className="hover:underline">Companies</Link>
+            <Link href="/assets" className="hover:underline">Assets</Link>
           </nav>
         </div>
       </header>
@@ -40,3 +32,4 @@ export default function SiteLayout({
     </div>
   );
 }
+
