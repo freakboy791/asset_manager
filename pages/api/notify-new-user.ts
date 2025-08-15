@@ -63,6 +63,9 @@ const handler: NextApiHandler = async (req, res) => {
       approval_token
     )}`;
 
+    // ✅ Add 3-second delay before sending email
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
     await sendEmail(
       adminEmail,
       "New user signup awaiting approval",
