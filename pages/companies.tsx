@@ -1,80 +1,95 @@
 // pages/companies.tsx
 import { useEffect, useState } from "react";
-import supabase from "../utils/supabaseClient";
+import { useRouter } from "next/router";
+import supabase from "@/utils/supabaseClient";
+import SiteLayout from "@/components/SiteLayout";
 
 type Company = {
   id: string;
   name: string;
-  depreciation_rate: number;
-  city?: string | null;
-  street?: string | null;
-  state?: string | null;
-  zip?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  note?: string | null;
-  created_at?: string | null;
+  city?: string;
+  state?: string;
+};
+
+type Profile = {
+  id: string;
+  role: string;
+  company_id: string | null;
 };
 
 export default function CompaniesPage() {
+  const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const fetchCompanies = async () => {
+    const loadData = async () => {
+      setLoading(true);
+
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData?.user;
+      if (!user) {
+        router.replace("/");
+        return;
+      }
+
+      const { data: profile, error: profileErr } = await supabase
+        .from("profiles")
+        .select("id, role, company_id")
+        .eq("id", user.id)
+        .single<Profile>();
+
+      if (profileErr || !profile) {
+        setError("Profile not found.");
+        setLoading(false);
+        return;
+      }
+
+      if (profile.role === "manager" && !profile.company_id) {
+        // First-time manager login — no company yet
+        router.replace("/company/setup");
+        return;
+      }
+
+      // Load companies list
       const { data, error } = await supabase
         .from("companies")
         .select("*")
         .order("name", { ascending: true });
 
       if (error) {
-        console.error("Error fetching companies:", error.message);
-        setLoading(false);
-        return;
+        setError(error.message);
+      } else {
+        setCompanies(data || []);
       }
 
-      setCompanies((data || []) as Company[]);
       setLoading(false);
     };
 
-    fetchCompanies();
-  }, []);
+    void loadData();
+  }, [router]);
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4 text-gray-800">Companies</h1>
+    <SiteLayout>
+      <div className="p-6">
+        <h1 className="text-2xl font-bold mb-4">Companies</h1>
+        {loading && <p>Loading…</p>}
+        {error && <p className="text-red-600">{error}</p>}
 
-      {loading ? (
-        <p>Loading companies…</p>
-      ) : companies.length === 0 ? (
-        <p>No companies found.</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <ul className="space-y-2">
           {companies.map((company) => (
-            <div
-              key={company.id}
-              className="border rounded p-4 shadow hover:shadow-md transition bg-white"
-            >
-              <h2 className="text-xl font-semibold text-gray-700">{company.name}</h2>
-              <p className="text-sm text-gray-500">
-                Depreciation Rate: {company.depreciation_rate}%
-              </p>
-              {(company.street || company.city || company.state || company.zip) && (
-                <p className="text-sm">
-                  {[company.street, company.city, company.state, company.zip]
-                    .filter(Boolean)
-                    .join(", ")}
+            <li key={company.id} className="p-4 border rounded bg-white shadow-sm">
+              <p className="font-semibold">{company.name}</p>
+              {company.city && company.state && (
+                <p className="text-sm text-gray-600">
+                  {company.city}, {company.state}
                 </p>
               )}
-              {company.phone && <p className="text-sm">📞 {company.phone}</p>}
-              {company.email && <p className="text-sm">✉️ {company.email}</p>}
-              {company.note && (
-                <p className="text-sm text-gray-600 mt-2">{company.note}</p>
-              )}
-            </div>
+            </li>
           ))}
-        </div>
-      )}
-    </div>
+        </ul>
+      </div>
+    </SiteLayout>
   );
 }
