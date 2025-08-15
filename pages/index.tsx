@@ -23,12 +23,10 @@ export default function Home() {
 
     try {
       if (mode === "signup") {
-        // 1) Pre-check: does an account already exist for this email?
         const { data: existsData, error: existsErr } = await supabase.rpc("user_exists", {
           p_email: email,
         });
 
-        // Fail-closed: if it exists OR the check failed, do not attempt signUp.
         if (existsErr || existsData === true) {
           setMessageType("error");
           setMessage(
@@ -44,7 +42,6 @@ export default function Home() {
             ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
             : undefined;
 
-        // 2) Create account with redirect for email confirmation
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -57,7 +54,6 @@ export default function Home() {
           return;
         }
 
-        // 3) Fire admin notification (non-blocking)
         if (data.user) {
           void fetch("/api/notify-new-user", {
             method: "POST",
@@ -86,11 +82,10 @@ export default function Home() {
       }
 
       if (mode === "reset") {
-        // ✅ Send recovery link to /auth/reset (not /auth/callback)
         const redirect =
           process.env.NEXT_PUBLIC_SITE_URL
             ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/reset`
-            : undefined;
+            : undefined; // Changed from /auth/callback to /auth/reset
 
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: redirect,
