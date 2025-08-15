@@ -1,6 +1,5 @@
 // pages/companies.tsx
 import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
 import supabase from "../utils/supabaseClient";
 
 type Company = {
@@ -20,12 +19,11 @@ type Company = {
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
     const fetchCompanies = async () => {
       const { data, error } = await supabase
-        .from<Company>("companies")
+        .from<Company, Company>("companies")
         .select("*")
         .order("name", { ascending: true });
 
@@ -81,3 +79,4 @@ export default function CompaniesPage() {
     </div>
   );
 }
+
