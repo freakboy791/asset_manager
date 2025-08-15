@@ -1,78 +1,83 @@
 // pages/companies.tsx
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import supabase from "@/utils/supabaseClient";
+import supabase from "../utils/supabaseClient";
+
+type Company = {
+  id: string;
+  name: string;
+  depreciation_rate: number;
+  city?: string;
+  street?: string;
+  state?: string;
+  zip?: string;
+  phone?: string;
+  email?: string;
+  note?: string;
+  created_at?: string;
+};
 
 export default function CompaniesPage() {
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
-  const [companies, setCompanies] = useState<any[]>([]);
   const router = useRouter();
 
   useEffect(() => {
-    const checkProfileAndFetch = async () => {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+    const fetchCompanies = async () => {
+      const { data, error } = await supabase
+        .from<Company>("companies")
+        .select("*")
+        .order("name", { ascending: true });
 
-      if (userError || !user) {
-        router.push("/");
+      if (error) {
+        console.error("Error fetching companies:", error.message);
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("role, company_id")
-        .eq("id", user.id)
-        .single();
-
-      if (profileError || !profile) {
-        router.push("/");
-        return;
-      }
-
-      // Redirect managers without a company to the setup page
-      if (profile.role === "manager" && !profile.company_id) {
-        router.push("/company/setup");
-        return;
-      }
-
-      // Optional: Admins see all companies
-      if (profile.role === "admin") {
-        const { data: allCompanies } = await supabase.from("companies").select("*");
-        setCompanies(allCompanies || []);
-      } else {
-        // Regular users/managers only see their own company
-        const { data: userCompany } = await supabase
-          .from("companies")
-          .select("*")
-          .eq("id", profile.company_id);
-
-        setCompanies(userCompany || []);
+      if (data) {
+        setCompanies(data);
       }
 
       setLoading(false);
     };
 
-    checkProfileAndFetch();
-  }, [router]);
-
-  if (loading) return <p className="p-4">Loading...</p>;
+    fetchCompanies();
+  }, []);
 
   return (
-    <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">Your Company</h1>
-      {companies.map((company) => (
-        <div
-          key={company.id}
-          className="border border-gray-300 rounded p-4 mb-4 shadow-sm bg-white"
-        >
-          <h2 className="text-lg font-semibold">{company.name}</h2>
-          <p>{company.city}, {company.state}</p>
-          <p>{company.email}</p>
-          <p className="text-sm text-gray-600">{company.note}</p>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4 text-gray-800">Companies</h1>
+
+      {loading ? (
+        <p>Loading companies…</p>
+      ) : companies.length === 0 ? (
+        <p>No companies found.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {companies.map((company) => (
+            <div
+              key={company.id}
+              className="border rounded p-4 shadow hover:shadow-md transition"
+            >
+              <h2 className="text-xl font-semibold text-gray-700">{company.name}</h2>
+              <p className="text-sm text-gray-500">
+                Depreciation Rate: {company.depreciation_rate}%
+              </p>
+              {company.city && <p className="text-sm">{company.city}</p>}
+              {company.state && company.zip && (
+                <p className="text-sm">
+                  {company.state}, {company.zip}
+                </p>
+              )}
+              {company.phone && <p className="text-sm">📞 {company.phone}</p>}
+              {company.email && <p className="text-sm">✉️ {company.email}</p>}
+              {company.note && (
+                <p className="text-sm text-gray-600 mt-2">{company.note}</p>
+              )}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
