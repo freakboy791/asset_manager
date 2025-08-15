@@ -86,9 +86,10 @@ export default function Home() {
       }
 
       if (mode === "reset") {
+        // ✅ Send recovery link to /auth/reset (not /auth/callback)
         const redirect =
           process.env.NEXT_PUBLIC_SITE_URL
-            ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
+            ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/reset`
             : undefined;
 
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
