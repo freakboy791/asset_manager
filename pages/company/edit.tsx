@@ -100,7 +100,7 @@ export default function EditCompanyPage() {
         return;
       }
 
-      router.replace("/companies");
+      router.replace("/company");
     } finally {
       setSubmitting(false);
     }
