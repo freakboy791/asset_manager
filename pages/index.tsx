@@ -1,194 +1,112 @@
-// pages/index.tsx
-import { useState } from "react";
+// pages/companies/index.tsx
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import supabase from "../utils/supabaseClient";
+import Link from "next/link";
+import supabase from "@/utils/supabaseClient";
 
-type Mode = "signin" | "signup" | "reset";
-type MsgType = "success" | "error" | "";
+type Company = {
+  id: string;
+  name: string;
+  depreciation_rate: number | null;
+  street?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  phone?: string;
+  email?: string;
+  note?: string;
+};
 
-export default function Home() {
-  const [mode, setMode] = useState<Mode>("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [message, setMessage] = useState<string>("");
-  const [messageType, setMessageType] = useState<MsgType>("");
-  const [busy, setBusy] = useState(false);
+export default function CompaniesPage() {
+  const [company, setCompany] = useState<Company | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const router = useRouter();
 
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage("");
-    setMessageType("");
-    setBusy(true);
-
-    try {
-      if (mode === "signup") {
-        const { data: existsData, error: existsErr } = await supabase.rpc("user_exists", {
-          p_email: email,
-        });
-
-        if (existsErr || existsData === true) {
-          setMessageType("error");
-          setMessage(
-            existsData === true
-              ? "An account already exists for this email. Please sign in or reset your password."
-              : "We couldn’t verify this email right now. Please try signing in or resetting your password."
-          );
-          return;
-        }
-
-        const redirect =
-          process.env.NEXT_PUBLIC_SITE_URL
-            ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
-            : undefined;
-
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          ...(redirect ? { options: { emailRedirectTo: redirect } } : {}),
-        });
-
-        if (error) {
-          setMessageType("error");
-          setMessage(error.message);
-          return;
-        }
-
-        if (data.user) {
-          void fetch("/api/notify-new-user", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ user_id: data.user.id, email: data.user.email }),
-          });
-        }
-
-        setMessageType("success");
-        setMessage(
-          "Thanks! We’ve sent a confirmation email. After you confirm, an admin will review and approve your access."
-        );
-        setMode("signin");
+  useEffect(() => {
+    const fetchCompany = async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData?.user;
+      if (!user) {
+        router.replace("/");
         return;
       }
 
-      if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          setMessageType("error");
-          setMessage(error.message);
-          return;
-        }
-        router.push("/company");
+      const { data: profile, error: profErr } = await supabase
+        .from("profiles")
+        .select("company_id, approved")
+        .eq("id", user.id)
+        .single();
+
+      if (profErr || !profile) {
+        setError("Profile not found.");
+        setLoading(false);
         return;
       }
 
-      if (mode === "reset") {
-        const redirect =
-          process.env.NEXT_PUBLIC_SITE_URL
-            ? `${process.env.NEXT_PUBLIC_SITE_URL}/auth/reset`
-            : undefined; // Changed from /auth/callback to /auth/reset
-
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: redirect,
-        });
-        if (error) {
-          setMessageType("error");
-          setMessage(error.message);
-          return;
-        }
-        setMessageType("success");
-        setMessage("Password reset email sent. Please check your inbox.");
+      if (!profile.approved) {
+        setError("Your account is awaiting admin approval.");
+        setLoading(false);
         return;
       }
-    } finally {
-      setBusy(false);
-    }
-  };
+
+      if (!profile.company_id) {
+        router.replace("/company/setup");
+        return;
+      }
+
+      const { data: companyData, error: compErr } = await supabase
+        .from("companies")
+        .select("*")
+        .eq("id", profile.company_id)
+        .single();
+
+      if (compErr || !companyData) {
+        setError("Company not found.");
+        setLoading(false);
+        return;
+      }
+
+      setCompany(companyData);
+      setLoading(false);
+    };
+
+    void fetchCompany();
+  }, [router]);
+
+  if (loading) return <p className="p-6">Loading…</p>;
+  if (error) return <p className="p-6 text-red-600">{error}</p>;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 shadow rounded w-full max-w-sm">
-        <h1 className="text-2xl mb-4 capitalize">{mode}</h1>
+    <div className="max-w-3xl mx-auto bg-white p-6 rounded shadow">
+      <h1 className="text-2xl font-bold mb-4">Company Info</h1>
 
-        <form onSubmit={handleAuth} className="space-y-4">
-          <input
-            type="email"
-            placeholder="Email"
-            className="border p-2 w-full"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+      {company ? (
+        <>
+          <ul className="mb-6 space-y-1">
+            <li><strong>Name:</strong> {company.name}</li>
+            {company.depreciation_rate !== null && (
+              <li><strong>Depreciation Rate:</strong> {company.depreciation_rate}%</li>
+            )}
+            {company.street && <li><strong>Street:</strong> {company.street}</li>}
+            {company.city && <li><strong>City:</strong> {company.city}</li>}
+            {company.state && <li><strong>State:</strong> {company.state}</li>}
+            {company.zip && <li><strong>ZIP:</strong> {company.zip}</li>}
+            {company.phone && <li><strong>Phone:</strong> {company.phone}</li>}
+            {company.email && <li><strong>Email:</strong> {company.email}</li>}
+            {company.note && <li><strong>Note:</strong> {company.note}</li>}
+          </ul>
 
-          {mode !== "reset" && (
-            <input
-              type="password"
-              placeholder="Password"
-              className="border p-2 w-full"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          )}
-
-          <button
-            type="submit"
-            disabled={busy}
-            className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white py-2 px-4 rounded w-full"
-          >
-            {busy
-              ? "Please wait…"
-              : mode === "signin"
-              ? "Sign In"
-              : mode === "signup"
-              ? "Sign Up"
-              : "Reset Password"}
-          </button>
-        </form>
-
-        {message && (
-          <p
-            className={`mt-4 text-sm ${
-              messageType === "error"
-                ? "text-red-600"
-                : messageType === "success"
-                ? "text-green-600"
-                : ""
-            }`}
-          >
-            {message}
-          </p>
-        )}
-
-        <div className="mt-4 flex justify-between text-sm">
-          <button
-            type="button"
-            onClick={() => setMode("signin")}
-            className={`text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded ${
-              mode === "signin" ? "underline" : ""
-            }`}
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("signup")}
-            className={`text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded ${
-              mode === "signup" ? "underline" : ""
-            }`}
-          >
-            Sign Up
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("reset")}
-            className={`text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded ${
-              mode === "reset" ? "underline" : ""
-            }`}
-          >
-            Reset Password
-          </button>
-        </div>
-      </div>
+          <Link href="/company/edit">
+            <button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+              Edit Company
+            </button>
+          </Link>
+        </>
+      ) : (
+        <p>No companies found.</p>
+      )}
     </div>
   );
 }
+
