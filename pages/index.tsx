@@ -23,7 +23,7 @@ export default function Home() {
         const user = userData?.user;
 
         if (user) {
-          router.replace("/companies");
+          router.replace("/company");
         }
       } catch (err) {
         console.error("Auth check failed", err);
@@ -97,7 +97,7 @@ export default function Home() {
           setMessage(error.message);
           return;
         }
-        router.push("/companies");
+        router.push("/company");
         return;
       }
 
