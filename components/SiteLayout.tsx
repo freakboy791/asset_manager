@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { ReactNode } from "react";
-import LogoutButton from "./LogoutButton"; 
+import LogoutButton from "./LogoutButton";
 
 export default function SiteLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -16,9 +16,14 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
       <header className="bg-black text-white py-4 px-6">
         <div className="flex justify-between items-center max-w-7xl mx-auto">
           <h1 className="text-xl font-bold">assetTRAC</h1>
-          <nav className="space-x-4">
-            <Link href="/company" className="hover:underline">Companies</Link>
-            <Link href="/assets" className="hover:underline">Assets</Link>
+          <nav className="flex items-center space-x-4">
+            <Link href="/company" className="hover:underline">
+              Company
+            </Link>
+            <Link href="/assets" className="hover:underline">
+              Assets
+            </Link>
+            <LogoutButton />
           </nav>
         </div>
       </header>
@@ -33,4 +38,3 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
     </div>
   );
 }
-
