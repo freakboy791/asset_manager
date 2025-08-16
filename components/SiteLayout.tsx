@@ -16,7 +16,7 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
         <div className="flex justify-between items-center max-w-7xl mx-auto">
           <h1 className="text-xl font-bold">assetTRAC</h1>
           <nav className="space-x-4">
-            <Link href="/companies" className="hover:underline">Companies</Link>
+            <Link href="/company" className="hover:underline">Companies</Link>
             <Link href="/assets" className="hover:underline">Assets</Link>
           </nav>
         </div>
