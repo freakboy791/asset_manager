@@ -77,7 +77,7 @@ export default function Home() {
           setMessage(error.message);
           return;
         }
-        router.push("/companies");
+        router.push("/company");
         return;
       }
 
