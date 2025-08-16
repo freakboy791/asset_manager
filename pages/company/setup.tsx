@@ -58,7 +58,7 @@ export default function CompanySetupPage() {
 
       // If admin or already has a company, send them away
       if (profile.role === "admin" || profile.company_id) {
-        router.replace("/companies");
+        router.replace("/company");
         return;
       }
 
@@ -126,8 +126,8 @@ export default function CompanySetupPage() {
         return;
       }
 
-      // Done — send them to Companies
-      router.replace("/companies");
+      // Done — send them to Company
+      router.replace("/company");
     } finally {
       setSubmitting(false);
     }
