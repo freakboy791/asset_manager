@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { ReactNode } from "react";
+import LogoutButton from "./LogoutButton"; 
 
 export default function SiteLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
