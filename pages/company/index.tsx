@@ -1,110 +1,81 @@
 // pages/company/index.tsx
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import supabase from "../../utils/supabaseClient";
-
-type Profile = {
-  id: string;
-  role: "admin" | "manager" | "tech" | "viewer" | "pending";
-  approved: boolean;
-  company_id: string | null;
-};
+import supabase from "@/utils/supabaseClient";
 
 type Company = {
   id: string;
   name: string;
-  city?: string;
-  state?: string;
-  email?: string;
-  phone?: string;
+  depreciation_rate: number | null;
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  note?: string | null;
 };
 
-export default function CompanyHome() {
+export default function CompanyPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>("");
-  const [companies, setCompanies] = useState<Company[]>([]);
+  const [company, setCompany] = useState<Company | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError("");
-
-      const { data: userData, error: userErr } = await supabase.auth.getUser();
+    const fetchCompany = async () => {
+      const { data: userData } = await supabase.auth.getUser();
       const user = userData?.user;
-
-      if (userErr || !user) {
-        router.push("/");
+      if (!user) {
+        router.replace("/");
         return;
       }
 
-      const { data: profile, error: profErr } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("id, role, approved, company_id")
+        .select("company_id")
         .eq("id", user.id)
-        .single<Profile>();
+        .single();
 
-      if (profErr || !profile) {
-        setError("Profile not found.");
-        setLoading(false);
+      if (profileError || !profile?.company_id) {
+        setError("No companies found.");
         return;
       }
 
-      if (!profile.approved) {
-        setError("Your account is pending admin approval.");
-        setLoading(false);
-        return;
-      }
-
-      if (profile.role === "manager" && profile.company_id === null) {
-        router.replace("/company/setup");
-        return;
-      }
-
-      const { data: comps, error: compsErr } = await supabase
+      const { data: companyData, error: companyError } = await supabase
         .from("companies")
         .select("*")
-        .order("name", { ascending: true });
+        .eq("id", profile.company_id)
+        .single();
 
-      if (compsErr) {
-        setError(compsErr.message);
-      } else {
-        setCompanies(comps as Company[]);
+      if (companyError || !companyData) {
+        setError("Company not found.");
+        return;
       }
 
-      setLoading(false);
+      setCompany(companyData);
     };
 
-    void load();
+    void fetchCompany();
   }, [router]);
 
-  if (loading) {
-    return <div className="p-6 text-gray-600">Loading…</div>;
-  }
+  if (error) return <p className="p-6 text-red-600">{error}</p>;
+  if (!company) return <p className="p-6">Loading company details…</p>;
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
-      <h1 className="text-2xl font-bold mb-4">Companies</h1>
-      {error && <p className="text-red-600">{error}</p>}
+    <div className="max-w-3xl mx-auto bg-white p-6 rounded shadow mt-6">
+      <h1 className="text-2xl font-bold mb-4">{company.name}</h1>
+      <p><strong>Depreciation Rate:</strong> {company.depreciation_rate ?? "N/A"}%</p>
+      {company.street && <p><strong>Address:</strong> {company.street}, {company.city}, {company.state} {company.zip}</p>}
+      {company.phone && <p><strong>Phone:</strong> {company.phone}</p>}
+      {company.email && <p><strong>Email:</strong> {company.email}</p>}
+      {company.note && <p><strong>Note:</strong> {company.note}</p>}
 
-      {companies.length === 0 ? (
-        <p>No companies found.</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {companies.map((c) => (
-            <div key={c.id} className="border rounded p-4 bg-white shadow">
-              <h2 className="text-lg font-semibold">{c.name}</h2>
-              {(c.city || c.state) && (
-                <p className="text-sm text-gray-600">
-                  {[c.city, c.state].filter(Boolean).join(", ")}
-                </p>
-              )}
-              {c.email && <p className="text-sm">✉️ {c.email}</p>}
-              {c.phone && <p className="text-sm">📞 {c.phone}</p>}
-            </div>
-          ))}
-        </div>
-      )}
+      <button
+        onClick={() => router.push("/company/edit")}
+        className="mt-6 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+      >
+        Update Company Details
+      </button>
     </div>
   );
 }
