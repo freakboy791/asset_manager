@@ -16,7 +16,7 @@ export default function AuthCallback() {
         return;
       }
 
-      router.push("/companies");
+      router.push("/company");
     };
 
     finalizeSignIn();
